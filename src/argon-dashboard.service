@@ -1,0 +1,30 @@
+[Unit]
+Description=Argon ONE UP CM5 Dashboard Daemon
+After=multi-user.target
+Requires=multi-user.target
+
+[Service]
+Type=simple
+User=zenovs
+Group=zenovs
+ExecStart=/usr/bin/python3 /usr/local/bin/argon_daemon.py
+Restart=always
+RestartSec=5
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=argon-dashboard
+
+# I2C Zugriff
+SupplementaryGroups=i2c
+
+# Sicherheit
+ProtectSystem=strict
+ReadWritePaths=/tmp
+DeviceAllow=/dev/i2c-1 rw
+NoNewPrivileges=true
+ProtectHome=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+
+[Install]
+WantedBy=multi-user.target
