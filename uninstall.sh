@@ -48,6 +48,7 @@ rm -f /tmp/argon_dashboard_status
 rm -f /tmp/argon_dashboard_status.tmp
 rm -f /tmp/argon_dashboard_control
 rm -f /tmp/argon_dashboard_control.tmp
+rm -rf /etc/argon
 echo "  → Dateien entfernt ✓"
 
 # Genmon-Plugin entfernen

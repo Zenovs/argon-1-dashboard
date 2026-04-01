@@ -42,7 +42,7 @@ systemctl stop argon-dashboard.service 2>/dev/null || true
 echo "  → Daemon gestoppt ✓"
 
 # Dateien aktualisieren
-echo -e "${YELLOW}[3/4] Aktualisiere Dateien...${NC}"
+echo -e "${YELLOW}[3/5] Aktualisiere Dateien...${NC}"
 cp "${SCRIPT_DIR}/src/argon_daemon.py" /usr/local/bin/argon_daemon.py
 chmod 755 /usr/local/bin/argon_daemon.py
 echo "  → argon_daemon.py ✓"
@@ -59,8 +59,20 @@ cp "${SCRIPT_DIR}/src/argon-dashboard.service" /etc/systemd/system/argon-dashboa
 systemctl daemon-reload
 echo "  → argon-dashboard.service ✓"
 
+# Luefter-Konfiguration (nur erstellen falls nicht vorhanden)
+echo -e "${YELLOW}[4/5] Pruefe Luefter-Konfiguration...${NC}"
+mkdir -p /etc/argon
+if [ ! -f /etc/argon/fan_config.json ]; then
+    cp "${SCRIPT_DIR}/src/fan_config.json" /etc/argon/fan_config.json
+    chmod 644 /etc/argon/fan_config.json
+    chown root:root /etc/argon/fan_config.json
+    echo "  → /etc/argon/fan_config.json erstellt ✓"
+else
+    echo "  → /etc/argon/fan_config.json bereits vorhanden (beibehalten) ✓"
+fi
+
 # Daemon neu starten
-echo -e "${YELLOW}[4/4] Starte Daemon neu...${NC}"
+echo -e "${YELLOW}[5/5] Starte Daemon neu...${NC}"
 systemctl start argon-dashboard.service
 echo "  → Daemon gestartet ✓"
 

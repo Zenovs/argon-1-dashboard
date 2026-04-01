@@ -5,6 +5,7 @@ Argon ONE UP CM5 Dashboard - GTK3 Control Panel
 
 Zeigt Status und ermoeglicht Steuerung von:
 - Luefter (Auto/Manuell + Slider)
+- Luefter-Kurve (konfigurierbar)
 - Tastaturbeleuchtung (Ein/Aus)
 
 Autor: zenovs
@@ -13,6 +14,7 @@ Lizenz: MIT
 
 import json
 import os
+import subprocess
 import sys
 
 try:
@@ -26,6 +28,15 @@ except Exception:
 
 STATUS_FILE = "/tmp/argon_dashboard_status"
 CONTROL_FILE = "/tmp/argon_dashboard_control"
+FAN_CONFIG_PATH = "/etc/argon/fan_config.json"
+
+DEFAULT_FAN_CURVE = [
+    {"temp": 50, "speed": 0},
+    {"temp": 55, "speed": 30},
+    {"temp": 60, "speed": 50},
+    {"temp": 65, "speed": 75},
+    {"temp": 70, "speed": 100},
+]
 
 
 class ArgonControlWindow(Gtk.Window):
@@ -33,7 +44,7 @@ class ArgonControlWindow(Gtk.Window):
 
     def __init__(self):
         super().__init__(title="Argon ONE UP CM5 - Steuerung")
-        self.set_default_size(380, 420)
+        self.set_default_size(420, 620)
         self.set_resizable(False)
         self.set_border_width(12)
         self.set_position(Gtk.WindowPosition.CENTER)
@@ -120,9 +131,7 @@ class ArgonControlWindow(Gtk.Window):
 
         # Auto-Modus Info
         self.auto_info = Gtk.Label()
-        self.auto_info.set_markup(
-            "<small><i>Auto: &lt;50°C=0% | 50°C=30% | 60°C=50% | 65°C=75% | 70°C=100%</i></small>"
-        )
+        self._update_auto_info_label()
         self.auto_info.set_line_wrap(True)
         self.auto_info.set_halign(Gtk.Align.START)
         fan_box.pack_start(self.auto_info, False, False, 0)
@@ -150,6 +159,80 @@ class ArgonControlWindow(Gtk.Window):
 
         # Slider aktivieren/deaktivieren je nach Modus
         self.fan_slider.set_sensitive(self.fan_mode == "manual")
+
+        # ── Luefter-Kurve konfigurieren ──────────────────────
+        curve_frame = Gtk.Frame(label=" 📈 Luefter-Kurve konfigurieren ")
+        curve_frame.set_margin_top(5)
+        main_box.pack_start(curve_frame, False, False, 0)
+
+        curve_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=6)
+        curve_box.set_margin_top(8)
+        curve_box.set_margin_bottom(8)
+        curve_box.set_margin_start(10)
+        curve_box.set_margin_end(10)
+        curve_frame.add(curve_box)
+
+        # Header
+        header_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
+        temp_header = Gtk.Label()
+        temp_header.set_markup("<b>Temperatur (°C)</b>")
+        temp_header.set_size_request(140, -1)
+        header_box.pack_start(temp_header, False, False, 0)
+
+        arrow_header = Gtk.Label(label="→")
+        header_box.pack_start(arrow_header, False, False, 0)
+
+        speed_header = Gtk.Label()
+        speed_header.set_markup("<b>Luefter (%)</b>")
+        speed_header.set_size_request(140, -1)
+        header_box.pack_start(speed_header, False, False, 0)
+        curve_box.pack_start(header_box, False, False, 0)
+
+        # 5 Zeilen mit Eingabefeldern
+        self.curve_entries = []  # [(temp_spin, speed_spin), ...]
+        current_curve = self._load_fan_curve()
+
+        for i in range(5):
+            row_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
+
+            # Temperatur SpinButton
+            temp_adj = Gtk.Adjustment(value=current_curve[i]["temp"] if i < len(current_curve) else 50 + i * 5,
+                                      lower=0, upper=100, step_increment=1, page_increment=5)
+            temp_spin = Gtk.SpinButton(adjustment=temp_adj, climb_rate=1, digits=0)
+            temp_spin.set_size_request(140, -1)
+            row_box.pack_start(temp_spin, False, False, 0)
+
+            arrow_label = Gtk.Label(label="→")
+            row_box.pack_start(arrow_label, False, False, 0)
+
+            # Speed SpinButton
+            speed_adj = Gtk.Adjustment(value=current_curve[i]["speed"] if i < len(current_curve) else 0,
+                                       lower=0, upper=100, step_increment=1, page_increment=5)
+            speed_spin = Gtk.SpinButton(adjustment=speed_adj, climb_rate=1, digits=0)
+            speed_spin.set_size_request(140, -1)
+            row_box.pack_start(speed_spin, False, False, 0)
+
+            curve_box.pack_start(row_box, False, False, 0)
+            self.curve_entries.append((temp_spin, speed_spin))
+
+        # Buttons
+        btn_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
+        btn_box.set_margin_top(4)
+
+        save_btn = Gtk.Button(label="💾 Speichern")
+        save_btn.connect("clicked", self.on_save_curve)
+        btn_box.pack_start(save_btn, True, True, 0)
+
+        reset_btn = Gtk.Button(label="🔄 Standard wiederherstellen")
+        reset_btn.connect("clicked", self.on_reset_curve)
+        btn_box.pack_start(reset_btn, True, True, 0)
+
+        curve_box.pack_start(btn_box, False, False, 0)
+
+        # Status-Label fuer Kurve
+        self.curve_status = Gtk.Label()
+        self.curve_status.set_halign(Gtk.Align.START)
+        curve_box.pack_start(self.curve_status, False, False, 0)
 
         # ── Tastaturbeleuchtung ──────────────────────────────
         kbd_frame = Gtk.Frame(label=" 💡 Tastaturbeleuchtung ")
@@ -199,6 +282,28 @@ class ArgonControlWindow(Gtk.Window):
         except Exception:
             pass
 
+    def _load_fan_curve(self):
+        """Laedt aktuelle Luefter-Kurve aus Konfigurationsdatei."""
+        try:
+            if os.path.exists(FAN_CONFIG_PATH):
+                with open(FAN_CONFIG_PATH, "r") as f:
+                    data = json.load(f)
+                curve = data.get("fan_curve", DEFAULT_FAN_CURVE)
+                if curve and len(curve) >= 2:
+                    return curve
+        except Exception:
+            pass
+        return list(DEFAULT_FAN_CURVE)
+
+    def _update_auto_info_label(self):
+        """Aktualisiert das Auto-Modus Info-Label basierend auf der aktuellen Kurve."""
+        curve = self._load_fan_curve()
+        parts = []
+        for p in curve:
+            parts.append(f"{p['temp']}°C={p['speed']}%")
+        info_text = " | ".join(parts)
+        self.auto_info.set_markup(f"<small><i>Auto: {info_text}</i></small>")
+
     def _update_kbd_label(self):
         """Aktualisiert Tastaturbeleuchtungs-Label."""
         if self.kbd_switch.get_active():
@@ -232,6 +337,87 @@ class ArgonControlWindow(Gtk.Window):
         self.kbd_backlight = widget.get_active()
         self._update_kbd_label()
         self._write_control()
+
+    def on_save_curve(self, widget):
+        """Speichert Luefter-Kurve nach /etc/argon/fan_config.json (via sudo)."""
+        # Werte auslesen
+        curve = []
+        for temp_spin, speed_spin in self.curve_entries:
+            temp = int(temp_spin.get_value())
+            speed = int(speed_spin.get_value())
+            curve.append({"temp": temp, "speed": speed})
+
+        # Validierung: Temperatur muss aufsteigend sein
+        for i in range(1, len(curve)):
+            if curve[i]["temp"] <= curve[i - 1]["temp"]:
+                self.curve_status.set_markup(
+                    "<span foreground='#FF4444'>❌ Fehler: Temperaturen muessen aufsteigend sein!</span>"
+                )
+                return
+
+        # Validierung: Speed 0-100
+        for p in curve:
+            if not (0 <= p["speed"] <= 100):
+                self.curve_status.set_markup(
+                    "<span foreground='#FF4444'>❌ Fehler: Luefter-Geschwindigkeit muss 0-100% sein!</span>"
+                )
+                return
+
+        # JSON erstellen
+        config_data = json.dumps({"fan_curve": curve}, indent=4)
+
+        # Mit pkexec/sudo schreiben
+        try:
+            # Versuche direkt zu schreiben (falls Rechte vorhanden)
+            os.makedirs("/etc/argon", exist_ok=True)
+            with open(FAN_CONFIG_PATH, "w") as f:
+                f.write(config_data + "\n")
+            self.curve_status.set_markup(
+                "<span foreground='#44CC44'>✅ Luefter-Kurve gespeichert! Daemon uebernimmt automatisch.</span>"
+            )
+            self._update_auto_info_label()
+        except PermissionError:
+            # Fallback: Mit pkexec/sudo schreiben
+            try:
+                cmd = f"echo '{config_data}' | sudo tee {FAN_CONFIG_PATH} > /dev/null"
+                result = subprocess.run(
+                    ["pkexec", "bash", "-c",
+                     f"mkdir -p /etc/argon && echo '{config_data}' > {FAN_CONFIG_PATH} && "
+                     f"chmod 644 {FAN_CONFIG_PATH} && chown root:root {FAN_CONFIG_PATH}"],
+                    capture_output=True, text=True, timeout=30
+                )
+                if result.returncode == 0:
+                    self.curve_status.set_markup(
+                        "<span foreground='#44CC44'>✅ Luefter-Kurve gespeichert! Daemon uebernimmt automatisch.</span>"
+                    )
+                    self._update_auto_info_label()
+                else:
+                    self.curve_status.set_markup(
+                        "<span foreground='#FF4444'>❌ Fehler: Keine Root-Rechte erhalten.</span>"
+                    )
+            except subprocess.TimeoutExpired:
+                self.curve_status.set_markup(
+                    "<span foreground='#FF4444'>❌ Fehler: Zeitueberschreitung bei Authentifizierung.</span>"
+                )
+            except Exception as e:
+                self.curve_status.set_markup(
+                    f"<span foreground='#FF4444'>❌ Fehler: {str(e)}</span>"
+                )
+        except Exception as e:
+            self.curve_status.set_markup(
+                f"<span foreground='#FF4444'>❌ Fehler: {str(e)}</span>"
+            )
+
+    def on_reset_curve(self, widget):
+        """Setzt Luefter-Kurve auf Standard zurueck."""
+        for i, (temp_spin, speed_spin) in enumerate(self.curve_entries):
+            if i < len(DEFAULT_FAN_CURVE):
+                temp_spin.set_value(DEFAULT_FAN_CURVE[i]["temp"])
+                speed_spin.set_value(DEFAULT_FAN_CURVE[i]["speed"])
+
+        self.curve_status.set_markup(
+            "<span foreground='#FF8800'>🔄 Standard wiederhergestellt. Klicke 'Speichern' zum Uebernehmen.</span>"
+        )
 
     def _write_control(self):
         """Schreibt Steuerbefehle nach /tmp/argon_dashboard_control."""

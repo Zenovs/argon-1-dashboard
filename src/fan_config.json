@@ -1,0 +1,9 @@
+{
+    "fan_curve": [
+        {"temp": 50, "speed": 0},
+        {"temp": 55, "speed": 30},
+        {"temp": 60, "speed": 50},
+        {"temp": 65, "speed": 75},
+        {"temp": 70, "speed": 100}
+    ]
+}

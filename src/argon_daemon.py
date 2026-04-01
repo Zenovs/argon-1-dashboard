@@ -42,13 +42,16 @@ FAN_PWM_ENABLE_PATH = "/sys/class/hwmon/hwmon3/pwm1_enable"
 # Tastaturbeleuchtung
 KBD_BACKLIGHT_PATH = "/sys/class/leds/default-on/brightness"
 
-# Luefter Auto-Stufen: (temp_schwelle, pwm_wert, prozent)
-FAN_AUTO_LEVELS = [
-    (70, 255, 100),  # >= 70°C -> 100%
-    (65, 191, 75),   # >= 65°C -> 75%
-    (60, 128, 50),   # >= 60°C -> 50%
-    (50, 77, 30),    # >= 50°C -> 30%
-    (0, 0, 0),       # < 50°C  -> 0%
+# Luefter-Konfiguration
+FAN_CONFIG_PATH = "/etc/argon/fan_config.json"
+
+# Standard Luefter-Kurve (wird verwendet, falls Konfiguration fehlt)
+DEFAULT_FAN_CURVE = [
+    {"temp": 50, "speed": 0},
+    {"temp": 55, "speed": 30},
+    {"temp": 60, "speed": 50},
+    {"temp": 65, "speed": 75},
+    {"temp": 70, "speed": 100},
 ]
 
 # Globale Variablen
@@ -57,6 +60,8 @@ bus = None
 current_fan_mode = "auto"
 current_fan_speed = 0  # Prozent (0-100)
 current_kbd_backlight = False
+fan_curve = list(DEFAULT_FAN_CURVE)  # Aktive Luefter-Kurve
+fan_config_mtime = 0  # Letzte Aenderungszeit der Konfigurationsdatei
 
 
 def signal_handler(signum, frame):
@@ -122,13 +127,87 @@ def write_fan_pwm(pwm_value):
         print(f"WARNUNG: PWM konnte nicht geschrieben werden: {e}", file=sys.stderr)
 
 
+def load_fan_config():
+    """Laedt Luefter-Kurve aus /etc/argon/fan_config.json (bei Aenderung)."""
+    global fan_curve, fan_config_mtime
+    try:
+        if not os.path.exists(FAN_CONFIG_PATH):
+            fan_curve = list(DEFAULT_FAN_CURVE)
+            fan_config_mtime = 0
+            return
+
+        mtime = os.path.getmtime(FAN_CONFIG_PATH)
+        if mtime == fan_config_mtime:
+            return  # Keine Aenderung
+
+        with open(FAN_CONFIG_PATH, "r") as f:
+            data = json.load(f)
+
+        curve = data.get("fan_curve", [])
+        if not curve or len(curve) < 2:
+            print("WARNUNG: Ungueltige Luefter-Kurve, verwende Standard.", file=sys.stderr)
+            fan_curve = list(DEFAULT_FAN_CURVE)
+        else:
+            # Validierung: aufsteigend sortiert nach Temperatur, Speed 0-100
+            curve = sorted(curve, key=lambda p: p["temp"])
+            valid = True
+            for p in curve:
+                if not (0 <= p.get("speed", -1) <= 100):
+                    valid = False
+                    break
+            if valid:
+                fan_curve = curve
+                print(f"Luefter-Kurve geladen: {fan_curve}")
+            else:
+                print("WARNUNG: Ungueltige Werte in Luefter-Kurve, verwende Standard.", file=sys.stderr)
+                fan_curve = list(DEFAULT_FAN_CURVE)
+
+        fan_config_mtime = mtime
+
+    except (json.JSONDecodeError, KeyError, TypeError) as e:
+        print(f"WARNUNG: Luefter-Konfiguration fehlerhaft: {e}", file=sys.stderr)
+        fan_curve = list(DEFAULT_FAN_CURVE)
+    except Exception as e:
+        print(f"WARNUNG: Luefter-Konfiguration konnte nicht gelesen werden: {e}", file=sys.stderr)
+
+
 def calculate_auto_fan(cpu_temp):
-    """Berechnet PWM-Wert basierend auf CPU-Temperatur (Auto-Modus)."""
+    """Berechnet Luefter-Prozent basierend auf CPU-Temperatur mit Interpolation."""
     if cpu_temp < 0:
         return 0, 0
-    for threshold, pwm, percent in FAN_AUTO_LEVELS:
-        if cpu_temp >= threshold:
-            return pwm, percent
+
+    curve = fan_curve
+    if not curve:
+        return 0, 0
+
+    # Unterhalb des ersten Punktes: Speed des ersten Punktes
+    if cpu_temp <= curve[0]["temp"]:
+        speed = curve[0]["speed"]
+        pwm = int(speed * 255 / 100)
+        return pwm, speed
+
+    # Oberhalb des letzten Punktes: Speed des letzten Punktes
+    if cpu_temp >= curve[-1]["temp"]:
+        speed = curve[-1]["speed"]
+        pwm = int(speed * 255 / 100)
+        return pwm, speed
+
+    # Interpolation zwischen Punkten
+    for i in range(len(curve) - 1):
+        t1, s1 = curve[i]["temp"], curve[i]["speed"]
+        t2, s2 = curve[i + 1]["temp"], curve[i + 1]["speed"]
+        if t1 <= cpu_temp <= t2:
+            if t2 == t1:
+                speed = s2
+            else:
+                # Lineare Interpolation
+                ratio = (cpu_temp - t1) / (t2 - t1)
+                speed = s1 + ratio * (s2 - s1)
+            speed = int(round(speed))
+            speed = max(0, min(100, speed))
+            pwm = int(speed * 255 / 100)
+            return pwm, speed
+
     return 0, 0
 
 
@@ -233,8 +312,14 @@ def main():
     # Initialen Zustand der Tastaturbeleuchtung lesen
     current_kbd_backlight = read_kbd_backlight()
 
+    # Luefter-Konfiguration laden
+    load_fan_config()
+
     try:
         while running:
+            # Luefter-Konfiguration bei Aenderung neu laden
+            load_fan_config()
+
             # Steuerbefehle lesen
             read_control_commands()
 

@@ -29,15 +29,46 @@ Zeigt **Batterie-Status**, **CPU-Temperatur** und **Luefter-Status** direkt in d
 | 🟠 Orange | 20-49% | 61-70°C | 50-74% |
 | 🔴 Rot | < 20% | > 70°C | ≥ 75% |
 
-### Automatische Lueftersteuerung
+### Automatische Lueftersteuerung (konfigurierbar)
 
-| CPU-Temperatur | Luefter-Geschwindigkeit | PWM |
-|---------------|------------------------|-----|
-| < 50°C | 0% (Aus) | 0 |
-| 50-59°C | 30% | 77 |
-| 60-64°C | 50% | 128 |
-| 65-69°C | 75% | 191 |
-| ≥ 70°C | 100% | 255 |
+Die Standard-Luefter-Kurve verwendet lineare Interpolation zwischen den Punkten:
+
+| CPU-Temperatur | Luefter-Geschwindigkeit |
+|---------------|------------------------|
+| ≤ 50°C | 0% (Aus) |
+| 55°C | 30% |
+| 60°C | 50% |
+| 65°C | 75% |
+| ≥ 70°C | 100% |
+
+Zwischen den Punkten wird linear interpoliert (z.B. bei 57°C → ~40%).
+
+#### Luefter-Kurve konfigurieren
+
+Die Kurve ist konfigurierbar ueber `/etc/argon/fan_config.json`:
+
+```json
+{
+    "fan_curve": [
+        {"temp": 50, "speed": 0},
+        {"temp": 55, "speed": 30},
+        {"temp": 60, "speed": 50},
+        {"temp": 65, "speed": 75},
+        {"temp": 70, "speed": 100}
+    ]
+}
+```
+
+**Konfiguration aendern:**
+- **GTK Control-Panel**: Klick auf Panel-Applet → Bereich "Luefter-Kurve konfigurieren"
+- **Manuell**: `/etc/argon/fan_config.json` editieren (als root)
+- Der Daemon laedt Aenderungen automatisch (kein Neustart noetig)
+
+**Regeln:**
+- Temperaturen muessen aufsteigend sortiert sein
+- Luefter-Geschwindigkeit: 0-100%
+- Mindestens 2 Punkte erforderlich
+- Bei ungueliger Konfiguration wird die Standard-Kurve verwendet
 
 ---
 
@@ -64,11 +95,12 @@ sudo bash install.sh
 ### Was passiert bei der Installation?
 
 1. ✅ `smbus2` Python-Paket wird installiert
-2. ✅ Daemon-Skript wird nach `/usr/local/bin/` kopiert
-3. ✅ Panel-Applet wird nach `/usr/local/bin/` kopiert
-4. ✅ Control-Panel wird nach `/usr/local/bin/` kopiert
-5. ✅ Systemd-Service wird eingerichtet und gestartet (als root)
-6. ✅ Genmon-Plugin wird automatisch zur Taskleiste hinzugefuegt
+2. ✅ Luefter-Konfiguration wird erstellt (`/etc/argon/fan_config.json`)
+3. ✅ Daemon-Skript wird nach `/usr/local/bin/` kopiert
+4. ✅ Panel-Applet wird nach `/usr/local/bin/` kopiert
+5. ✅ Control-Panel wird nach `/usr/local/bin/` kopiert
+6. ✅ Systemd-Service wird eingerichtet und gestartet (als root)
+7. ✅ Genmon-Plugin wird automatisch zur Taskleiste hinzugefuegt
 
 ---
 
@@ -120,6 +152,8 @@ argon_daemon.py (Systemd-Service, root)
     │
     ├── Schreibt /sys/class/leds/default-on/brightness → Tastatur-LED
     │
+    ├── Liest /etc/argon/fan_config.json → Luefter-Kurve (auto-reload)
+    │
     ├── Liest /tmp/argon_dashboard_control ← Steuerbefehle
     │
     └── Schreibt /tmp/argon_dashboard_status → JSON-Status
@@ -128,7 +162,8 @@ argon_daemon.py (Systemd-Service, root)
                     ├── Zeigt in XFCE-Taskleiste an
                     └── Klick → argon_control.py (GTK3)
                                     │
-                                    └── Schreibt /tmp/argon_dashboard_control
+                                    ├── Schreibt /tmp/argon_dashboard_control
+                                    └── Schreibt /etc/argon/fan_config.json (via pkexec)
 ```
 
 ### I2C-Kommunikation
@@ -146,6 +181,7 @@ argon_daemon.py (Systemd-Service, root)
 | `/sys/class/hwmon/hwmon3/pwm1` | Luefter PWM (0-255) | Schreiben (root) |
 | `/sys/class/hwmon/hwmon3/pwm1_enable` | PWM-Modus | Schreiben (root) |
 | `/sys/class/leds/default-on/brightness` | Tastatur-LED (0/1) | Schreiben (root) |
+| `/etc/argon/fan_config.json` | Luefter-Kurve Konfiguration | Lesen (Daemon) / Schreiben (Control-Panel via pkexec) |
 
 ### Status-Datei (`/tmp/argon_dashboard_status`)
 
@@ -184,8 +220,10 @@ argon_daemon.py (Systemd-Service, root)
 ### Control-Panel (GTK3)
 - **Luefter Auto-Modus**: Temperaturbasierte automatische Steuerung
 - **Luefter Manuell**: Slider fuer 0-100% manuelle Geschwindigkeit
+- **Luefter-Kurve konfigurieren**: 5 Temperatur-/Geschwindigkeitspunkte anpassbar
 - **Tastaturbeleuchtung**: Ein/Aus-Schalter
 - Status wird jede Sekunde aktualisiert
+- Luefter-Kurve wird sofort vom Daemon uebernommen (kein Neustart noetig)
 
 ---
 
@@ -277,8 +315,9 @@ argon-dashboard/
 ├── src/
 │   ├── argon_daemon.py    # Python-Daemon (I2C + Temp + Luefter + LED)
 │   ├── argon_panel.sh     # XFCE Genmon-Skript
-│   ├── argon_control.py   # GTK3 Control-Panel
-│   └── argon-dashboard.service  # Systemd-Service
+│   ├── argon_control.py   # GTK3 Control-Panel (inkl. Luefter-Kurve)
+│   ├── argon-dashboard.service  # Systemd-Service
+│   └── fan_config.json    # Standard Luefter-Kurve
 └── .gitignore
 ```
 

@@ -75,24 +75,36 @@ if ! groups "$USER_NAME" | grep -q "\bi2c\b"; then
     usermod -aG i2c "$USER_NAME" 2>/dev/null || true
 fi
 
+# ── Luefter-Konfiguration erstellen ──────────────────────────
+echo -e "${YELLOW}[2/8] Erstelle Luefter-Konfiguration...${NC}"
+mkdir -p /etc/argon
+if [ ! -f /etc/argon/fan_config.json ]; then
+    cp "${SCRIPT_DIR}/src/fan_config.json" /etc/argon/fan_config.json
+    chmod 644 /etc/argon/fan_config.json
+    chown root:root /etc/argon/fan_config.json
+    echo "  → /etc/argon/fan_config.json erstellt ✓"
+else
+    echo "  → /etc/argon/fan_config.json bereits vorhanden ✓"
+fi
+
 # ── Dateien kopieren ────────────────────────────────────────
-echo -e "${YELLOW}[2/7] Kopiere Daemon-Skript...${NC}"
+echo -e "${YELLOW}[3/8] Kopiere Daemon-Skript...${NC}"
 cp "${SCRIPT_DIR}/src/argon_daemon.py" /usr/local/bin/argon_daemon.py
 chmod 755 /usr/local/bin/argon_daemon.py
 echo "  → /usr/local/bin/argon_daemon.py ✓"
 
-echo -e "${YELLOW}[3/7] Kopiere Panel-Applet...${NC}"
+echo -e "${YELLOW}[4/8] Kopiere Panel-Applet...${NC}"
 cp "${SCRIPT_DIR}/src/argon_panel.sh" /usr/local/bin/argon_panel.sh
 chmod 755 /usr/local/bin/argon_panel.sh
 echo "  → /usr/local/bin/argon_panel.sh ✓"
 
-echo -e "${YELLOW}[4/7] Kopiere Control-Panel...${NC}"
+echo -e "${YELLOW}[5/8] Kopiere Control-Panel...${NC}"
 cp "${SCRIPT_DIR}/src/argon_control.py" /usr/local/bin/argon_control.py
 chmod 755 /usr/local/bin/argon_control.py
 echo "  → /usr/local/bin/argon_control.py ✓"
 
 # ── Systemd-Service einrichten ──────────────────────────────
-echo -e "${YELLOW}[5/7] Richte Systemd-Service ein...${NC}"
+echo -e "${YELLOW}[6/8] Richte Systemd-Service ein...${NC}"
 cp "${SCRIPT_DIR}/src/argon-dashboard.service" /etc/systemd/system/argon-dashboard.service
 systemctl daemon-reload
 systemctl enable argon-dashboard.service
@@ -100,7 +112,7 @@ systemctl restart argon-dashboard.service
 echo "  → argon-dashboard.service aktiviert und gestartet ✓"
 
 # ── Genmon-Plugin zur XFCE-Taskleiste hinzufuegen ──────────
-echo -e "${YELLOW}[6/7] Konfiguriere XFCE-Panel Genmon-Plugin...${NC}"
+echo -e "${YELLOW}[7/8] Konfiguriere XFCE-Panel Genmon-Plugin...${NC}"
 
 # xfconf-query muss als User ausgefuehrt werden
 if command -v xfconf-query &>/dev/null; then
@@ -178,7 +190,7 @@ else
 fi
 
 # ── Abschluss ───────────────────────────────────────────────
-echo -e "${YELLOW}[7/7] Pruefe Installation...${NC}"
+echo -e "${YELLOW}[8/8] Pruefe Installation...${NC}"
 sleep 2
 
 if systemctl is-active --quiet argon-dashboard.service; then

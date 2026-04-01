@@ -105,7 +105,7 @@ else
 fi
 
 # Genmon XML-Ausgabe
-echo "<txt>${BATT_ICON}<span foreground='${BATT_COLOR}'>${BATT_TEXT}</span> 🌡<span foreground='${TEMP_COLOR}'>${TEMP_TEXT}</span> 🌀<span foreground='${FAN_COLOR}'>${FAN_TEXT}</span>   </txt>"
+echo "<txt>${BATT_ICON}<span foreground='${BATT_COLOR}'>${BATT_TEXT}</span>  <span foreground='#666666'>|</span>  🌡<span foreground='${TEMP_COLOR}'>${TEMP_TEXT}</span>  <span foreground='#666666'>|</span>  🌀<span foreground='${FAN_COLOR}'>${FAN_TEXT}</span>   </txt>"
 
 # Click-Handler: Control-Panel oeffnen
 echo "<txtclick>python3 /usr/local/bin/argon_control.py &</txtclick>"
