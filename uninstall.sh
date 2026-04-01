@@ -43,8 +43,11 @@ echo "  → Service entfernt ✓"
 echo -e "${YELLOW}[2/4] Entferne Dateien...${NC}"
 rm -f /usr/local/bin/argon_daemon.py
 rm -f /usr/local/bin/argon_panel.sh
+rm -f /usr/local/bin/argon_control.py
 rm -f /tmp/argon_dashboard_status
 rm -f /tmp/argon_dashboard_status.tmp
+rm -f /tmp/argon_dashboard_control
+rm -f /tmp/argon_dashboard_control.tmp
 echo "  → Dateien entfernt ✓"
 
 # Genmon-Plugin entfernen

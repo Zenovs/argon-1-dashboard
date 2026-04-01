@@ -2,7 +2,7 @@
 
 Ein leichtgewichtiges Dashboard fuer den **Argon ONE UP CM5 Raspberry Pi Laptop** mit Kali Linux und XFCE Desktop.
 
-Zeigt **Batterie-Status** und **CPU-Temperatur** direkt in der XFCE-Taskleiste an.
+Zeigt **Batterie-Status**, **CPU-Temperatur** und **Luefter-Status** direkt in der XFCE-Taskleiste an. Bietet Steuerung von **Luefter** und **Tastaturbeleuchtung** ueber ein GTK3-Control-Panel.
 
 ![Dashboard Preview](docs/screenshot.png)
 
@@ -12,6 +12,9 @@ Zeigt **Batterie-Status** und **CPU-Temperatur** direkt in der XFCE-Taskleiste a
 
 - 🔋 **Batterie-Anzeige** mit Prozent und Lade-Status
 - 🌡️ **CPU-Temperatur** mit Farbcodierung
+- 🌀 **Luefter-Anzeige** mit RPM und Geschwindigkeit
+- 🔧 **Lueftersteuerung** (Auto/Manuell) ueber GTK3-Panel
+- 💡 **Tastaturbeleuchtung** Ein/Aus-Steuerung
 - 🎨 **Farbcodierung**: Gruen/Orange/Rot je nach Status
 - 🔌 **Lade-Erkennung**: Unterschiedliche Icons fuer Laden/Entladen
 - ⚡ **Leichtgewichtig**: Minimaler Ressourcenverbrauch
@@ -20,11 +23,21 @@ Zeigt **Batterie-Status** und **CPU-Temperatur** direkt in der XFCE-Taskleiste a
 
 ### Farbcodierung
 
-| Wert | Batterie | CPU-Temperatur |
-|------|----------|----------------|
-| 🟢 Gruen | ≥ 50% | ≤ 60°C |
-| 🟠 Orange | 20-49% | 61-70°C |
-| 🔴 Rot | < 20% | > 70°C |
+| Wert | Batterie | CPU-Temperatur | Luefter |
+|------|----------|----------------|---------|
+| 🟢 Gruen | ≥ 50% | ≤ 60°C | < 50% |
+| 🟠 Orange | 20-49% | 61-70°C | 50-74% |
+| 🔴 Rot | < 20% | > 70°C | ≥ 75% |
+
+### Automatische Lueftersteuerung
+
+| CPU-Temperatur | Luefter-Geschwindigkeit | PWM |
+|---------------|------------------------|-----|
+| < 50°C | 0% (Aus) | 0 |
+| 50-59°C | 30% | 77 |
+| 60-64°C | 50% | 128 |
+| 65-69°C | 75% | 191 |
+| ≥ 70°C | 100% | 255 |
 
 ---
 
@@ -34,6 +47,7 @@ Zeigt **Batterie-Status** und **CPU-Temperatur** direkt in der XFCE-Taskleiste a
 - Kali Linux mit XFCE Desktop
 - I2C aktiviert (`raspi-config` → Interface Options → I2C)
 - XFCE Genmon Plugin (`sudo apt install xfce4-genmon-plugin`)
+- GTK3 fuer Control-Panel (`sudo apt install python3-gi gir1.2-gtk-3.0`)
 
 ---
 
@@ -52,8 +66,9 @@ sudo bash install.sh
 1. ✅ `smbus2` Python-Paket wird installiert
 2. ✅ Daemon-Skript wird nach `/usr/local/bin/` kopiert
 3. ✅ Panel-Applet wird nach `/usr/local/bin/` kopiert
-4. ✅ Systemd-Service wird eingerichtet und gestartet
-5. ✅ Genmon-Plugin wird automatisch zur Taskleiste hinzugefuegt
+4. ✅ Control-Panel wird nach `/usr/local/bin/` kopiert
+5. ✅ Systemd-Service wird eingerichtet und gestartet (als root)
+6. ✅ Genmon-Plugin wird automatisch zur Taskleiste hinzugefuegt
 
 ---
 
@@ -66,7 +81,7 @@ sudo bash update.sh
 
 Das Update-Skript:
 - Pullt die neuesten Aenderungen von GitHub
-- Aktualisiert alle Dateien
+- Aktualisiert alle Dateien (inkl. Control-Panel)
 - Startet den Daemon neu
 
 ---
@@ -80,8 +95,9 @@ sudo bash uninstall.sh
 
 Entfernt:
 - Systemd-Service
-- Alle installierten Dateien
+- Alle installierten Dateien (inkl. Control-Panel)
 - Genmon-Plugin aus der Taskleiste
+- Temporaere Status- und Steuerdateien
 
 ---
 
@@ -90,19 +106,29 @@ Entfernt:
 ### Architektur
 
 ```
-argon_daemon.py (Systemd-Service)
+argon_daemon.py (Systemd-Service, root)
     │
     ├── Liest I2C Bus 1, Adresse 0x64
     │   ├── Register 0x04 → Batterie-Prozent
     │   └── Register 0x0E → Lade-Status
     │
-    ├── Liest /sys/class/thermal/thermal_zone0/temp
+    ├── Liest /sys/class/thermal/thermal_zone0/temp → CPU-Temp
     │
-    └── Schreibt JSON → /tmp/argon_dashboard_status
+    ├── Liest /sys/class/hwmon/hwmon3/fan1_input → Luefter-RPM
+    │
+    ├── Schreibt /sys/class/hwmon/hwmon3/pwm1 → Luefter-PWM
+    │
+    ├── Schreibt /sys/class/leds/default-on/brightness → Tastatur-LED
+    │
+    ├── Liest /tmp/argon_dashboard_control ← Steuerbefehle
+    │
+    └── Schreibt /tmp/argon_dashboard_status → JSON-Status
                               │
                     argon_panel.sh (Genmon-Plugin)
-                              │
-                    Zeigt in XFCE-Taskleiste an
+                    ├── Zeigt in XFCE-Taskleiste an
+                    └── Klick → argon_control.py (GTK3)
+                                    │
+                                    └── Schreibt /tmp/argon_dashboard_control
 ```
 
 ### I2C-Kommunikation
@@ -112,6 +138,15 @@ argon_daemon.py (Systemd-Service)
 | `0x04` | Batterie-Prozent | 0-100 |
 | `0x0E` | Lade-Status | < 0x80 = Laedt, ≥ 0x80 = Entlaedt |
 
+### Hardware-Schnittstellen
+
+| Pfad | Beschreibung | Zugriff |
+|------|-------------|---------|
+| `/sys/class/hwmon/hwmon3/fan1_input` | Luefter RPM | Lesen |
+| `/sys/class/hwmon/hwmon3/pwm1` | Luefter PWM (0-255) | Schreiben (root) |
+| `/sys/class/hwmon/hwmon3/pwm1_enable` | PWM-Modus | Schreiben (root) |
+| `/sys/class/leds/default-on/brightness` | Tastatur-LED (0/1) | Schreiben (root) |
+
 ### Status-Datei (`/tmp/argon_dashboard_status`)
 
 ```json
@@ -119,9 +154,38 @@ argon_daemon.py (Systemd-Service)
     "battery_percent": 85,
     "is_charging": true,
     "cpu_temp": 42.5,
+    "fan_rpm": 1200,
+    "fan_speed": 30,
+    "fan_mode": "auto",
+    "kbd_backlight": true,
     "timestamp": 1711929600.0
 }
 ```
+
+### Steuer-Datei (`/tmp/argon_dashboard_control`)
+
+```json
+{
+    "fan_mode": "auto",
+    "fan_speed": 50,
+    "kbd_backlight": true
+}
+```
+
+---
+
+## 🎮 Bedienung
+
+### Panel-Applet
+- Zeigt: 🔋 Batterie | 🌡 Temperatur | 🌀 Luefter
+- **Klick** auf das Applet oeffnet das Control-Panel
+- **Hover** zeigt detaillierte Infos als Tooltip
+
+### Control-Panel (GTK3)
+- **Luefter Auto-Modus**: Temperaturbasierte automatische Steuerung
+- **Luefter Manuell**: Slider fuer 0-100% manuelle Geschwindigkeit
+- **Tastaturbeleuchtung**: Ein/Aus-Schalter
+- Status wird jede Sekunde aktualisiert
 
 ---
 
@@ -154,6 +218,30 @@ i2cget -y 1 0x64 0x04  # Batterie-Prozent
 i2cget -y 1 0x64 0x0e  # Lade-Status
 ```
 
+### Luefter-Steuerung funktioniert nicht
+
+```bash
+# PWM-Pfade pruefen
+cat /sys/class/hwmon/hwmon3/fan1_input    # RPM lesen
+cat /sys/class/hwmon/hwmon3/pwm1          # PWM-Wert lesen
+cat /sys/class/hwmon/hwmon3/pwm1_enable   # PWM-Modus pruefen
+
+# Manuell testen (als root)
+echo 1 > /sys/class/hwmon/hwmon3/pwm1_enable
+echo 128 > /sys/class/hwmon/hwmon3/pwm1   # 50%
+```
+
+### Tastaturbeleuchtung funktioniert nicht
+
+```bash
+# Pfad pruefen
+cat /sys/class/leds/default-on/brightness
+
+# Manuell testen (als root)
+echo 1 > /sys/class/leds/default-on/brightness  # Ein
+echo 0 > /sys/class/leds/default-on/brightness  # Aus
+```
+
 ### Panel-Applet wird nicht angezeigt
 
 1. Pruefen ob Genmon installiert ist:
@@ -166,14 +254,14 @@ i2cget -y 1 0x64 0x0e  # Lade-Status
    - Befehl: `/usr/local/bin/argon_panel.sh`
    - Aktualisierung: 2000 ms
 
-### Keine Berechtigung fuer I2C
+### Control-Panel oeffnet nicht
 
 ```bash
-# User zur i2c-Gruppe hinzufuegen
-sudo usermod -aG i2c zenovs
+# GTK3 pruefen
+python3 -c "import gi; gi.require_version('Gtk', '3.0')"
 
-# Abmelden und neu anmelden oder:
-newgrp i2c
+# Manuell starten
+python3 /usr/local/bin/argon_control.py
 ```
 
 ---
@@ -187,8 +275,9 @@ argon-dashboard/
 ├── update.sh              # Update-Skript
 ├── uninstall.sh           # Deinstallationsskript
 ├── src/
-│   ├── argon_daemon.py    # Python-Daemon (I2C + Temp)
+│   ├── argon_daemon.py    # Python-Daemon (I2C + Temp + Luefter + LED)
 │   ├── argon_panel.sh     # XFCE Genmon-Skript
+│   ├── argon_control.py   # GTK3 Control-Panel
 │   └── argon-dashboard.service  # Systemd-Service
 └── .gitignore
 ```

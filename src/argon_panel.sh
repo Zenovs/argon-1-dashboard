@@ -1,7 +1,7 @@
 #!/bin/bash
 # -*- coding: utf-8 -*-
 # Argon ONE UP CM5 - XFCE Genmon Panel-Applet
-# Liest JSON-Status und zeigt Batterie + Temperatur mit Farbcodierung
+# Liest JSON-Status und zeigt Batterie + Temperatur + Luefter mit Farbcodierung
 
 STATUS_FILE="/tmp/argon_dashboard_status"
 
@@ -20,41 +20,31 @@ if [ "$FILE_AGE" -gt 10 ]; then
     exit 0
 fi
 
-# JSON lesen
-BATTERY=$(python3 -c "
+# JSON lesen - alle Werte auf einmal
+eval $(python3 -c "
 import json, sys
 try:
     with open('$STATUS_FILE') as f:
         d = json.load(f)
-    print(d.get('battery_percent', -1))
-except:
-    print(-1)
-" 2>/dev/null)
-
-CHARGING=$(python3 -c "
-import json, sys
-try:
-    with open('$STATUS_FILE') as f:
-        d = json.load(f)
+    print(f'BATTERY={d.get(\"battery_percent\", -1)}')
     v = d.get('is_charging')
     if v is None:
-        print('unknown')
+        print('CHARGING=unknown')
     elif v:
-        print('true')
+        print('CHARGING=true')
     else:
-        print('false')
+        print('CHARGING=false')
+    print(f'TEMP={d.get(\"cpu_temp\", -1)}')
+    print(f'FAN_RPM={d.get(\"fan_rpm\", -1)}')
+    print(f'FAN_SPEED={d.get(\"fan_speed\", 0)}')
+    print(f'FAN_MODE={d.get(\"fan_mode\", \"auto\")}')
 except:
-    print('unknown')
-" 2>/dev/null)
-
-TEMP=$(python3 -c "
-import json, sys
-try:
-    with open('$STATUS_FILE') as f:
-        d = json.load(f)
-    print(d.get('cpu_temp', -1))
-except:
-    print(-1)
+    print('BATTERY=-1')
+    print('CHARGING=unknown')
+    print('TEMP=-1')
+    print('FAN_RPM=-1')
+    print('FAN_SPEED=0')
+    print('FAN_MODE=auto')
 " 2>/dev/null)
 
 # Batterie-Icon und Farbe bestimmen
@@ -80,7 +70,6 @@ else
 fi
 
 # Temperatur-Farbcodierung
-# Bash kann keine Floats vergleichen, daher als Integer (abgerundet)
 TEMP_INT=$(printf "%.0f" "$TEMP" 2>/dev/null || echo "-1")
 
 if [ "$TEMP_INT" -eq -1 ] 2>/dev/null; then
@@ -97,8 +86,29 @@ else
     TEMP_TEXT="${TEMP}°C"
 fi
 
+# Luefter-Anzeige
+if [ "$FAN_RPM" -eq -1 ] 2>/dev/null; then
+    FAN_TEXT="--"
+    FAN_COLOR="#888888"
+elif [ "$FAN_RPM" -eq 0 ] 2>/dev/null; then
+    FAN_TEXT="Aus"
+    FAN_COLOR="#44CC44"
+else
+    FAN_TEXT="${FAN_SPEED}%"
+    if [ "$FAN_SPEED" -ge 75 ] 2>/dev/null; then
+        FAN_COLOR="#FF4444"
+    elif [ "$FAN_SPEED" -ge 50 ] 2>/dev/null; then
+        FAN_COLOR="#FF8800"
+    else
+        FAN_COLOR="#44CC44"
+    fi
+fi
+
 # Genmon XML-Ausgabe
-echo "<txt>${BATT_ICON}<span foreground='${BATT_COLOR}'>${BATT_TEXT}</span> 🌡<span foreground='${TEMP_COLOR}'>${TEMP_TEXT}</span>   </txt>"
+echo "<txt>${BATT_ICON}<span foreground='${BATT_COLOR}'>${BATT_TEXT}</span> 🌡<span foreground='${TEMP_COLOR}'>${TEMP_TEXT}</span> 🌀<span foreground='${FAN_COLOR}'>${FAN_TEXT}</span>   </txt>"
+
+# Click-Handler: Control-Panel oeffnen
+echo "<txtclick>python3 /usr/local/bin/argon_control.py &</txtclick>"
 
 # Tooltip mit Details
 if [ "$CHARGING" = "true" ]; then
@@ -109,4 +119,13 @@ else
     CHARGE_TEXT="Unbekannt"
 fi
 
-echo "<tool>Argon ONE UP CM5 Dashboard\n━━━━━━━━━━━━━━━━━━━━━━━\nBatterie: ${BATT_TEXT} (${CHARGE_TEXT})\nCPU-Temp: ${TEMP_TEXT}</tool>"
+if [ "$FAN_MODE" = "auto" ]; then
+    FAN_MODE_TEXT="Auto"
+else
+    FAN_MODE_TEXT="Manuell"
+fi
+
+FAN_RPM_TEXT="${FAN_RPM}"
+[ "$FAN_RPM" -eq -1 ] 2>/dev/null && FAN_RPM_TEXT="--"
+
+echo "<tool>Argon ONE UP CM5 Dashboard\n━━━━━━━━━━━━━━━━━━━━━━━\nBatterie: ${BATT_TEXT} (${CHARGE_TEXT})\nCPU-Temp: ${TEMP_TEXT}\nLuefter: ${FAN_RPM_TEXT} RPM (${FAN_MODE_TEXT}, ${FAN_SPEED}%)\n━━━━━━━━━━━━━━━━━━━━━━━\nKlicken fuer Steuerung</tool>"

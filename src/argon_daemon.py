@@ -3,8 +3,10 @@
 """
 Argon ONE UP CM5 Dashboard Daemon
 
-Liest Batterie-Status via I2C (Bus 1, Addr 0x64) und CPU-Temperatur.
+Liest Batterie-Status via I2C (Bus 1, Addr 0x64), CPU-Temperatur,
+Luefter-RPM und steuert Luefter (PWM) sowie Tastaturbeleuchtung.
 Schreibt JSON-Status nach /tmp/argon_dashboard_status.
+Liest Steuerbefehle aus /tmp/argon_dashboard_control.
 
 Autor: zenovs
 Lizenz: MIT
@@ -29,11 +31,32 @@ BATTERY_PERCENT_REG = 0x04
 BATTERY_CHARGE_REG = 0x0E
 CPU_TEMP_PATH = "/sys/class/thermal/thermal_zone0/temp"
 STATUS_FILE = "/tmp/argon_dashboard_status"
+CONTROL_FILE = "/tmp/argon_dashboard_control"
 POLL_INTERVAL = 2  # Sekunden
 
-# Globale Variable fuer sauberes Beenden
+# Luefter-Hardware-Pfade
+FAN_RPM_PATH = "/sys/class/hwmon/hwmon3/fan1_input"
+FAN_PWM_PATH = "/sys/class/hwmon/hwmon3/pwm1"
+FAN_PWM_ENABLE_PATH = "/sys/class/hwmon/hwmon3/pwm1_enable"
+
+# Tastaturbeleuchtung
+KBD_BACKLIGHT_PATH = "/sys/class/leds/default-on/brightness"
+
+# Luefter Auto-Stufen: (temp_schwelle, pwm_wert, prozent)
+FAN_AUTO_LEVELS = [
+    (70, 255, 100),  # >= 70°C -> 100%
+    (65, 191, 75),   # >= 65°C -> 75%
+    (60, 128, 50),   # >= 60°C -> 50%
+    (50, 77, 30),    # >= 50°C -> 30%
+    (0, 0, 0),       # < 50°C  -> 0%
+]
+
+# Globale Variablen
 running = True
 bus = None
+current_fan_mode = "auto"
+current_fan_speed = 0  # Prozent (0-100)
+current_kbd_backlight = False
 
 
 def signal_handler(signum, frame):
@@ -47,7 +70,6 @@ def read_battery_percent():
     """Liest Batterie-Prozent von I2C Register 0x04."""
     try:
         value = bus.read_byte_data(BATTERY_ADDR, BATTERY_PERCENT_REG)
-        # Wert auf 0-100 begrenzen
         return max(0, min(100, value))
     except Exception as e:
         print(f"WARNUNG: Batterie-Prozent konnte nicht gelesen werden: {e}", file=sys.stderr)
@@ -55,11 +77,7 @@ def read_battery_percent():
 
 
 def read_charging_status():
-    """Liest Lade-Status von I2C Register 0x0E.
-    
-    Wert < 0x80 = laedt
-    Wert >= 0x80 = entlaedt
-    """
+    """Liest Lade-Status von I2C Register 0x0E."""
     try:
         value = bus.read_byte_data(BATTERY_ADDR, BATTERY_CHARGE_REG)
         return value < 0x80
@@ -77,6 +95,90 @@ def read_cpu_temp():
     except Exception as e:
         print(f"WARNUNG: CPU-Temperatur konnte nicht gelesen werden: {e}", file=sys.stderr)
         return -1.0
+
+
+def read_fan_rpm():
+    """Liest Luefter-RPM aus /sys/class/hwmon/hwmon3/fan1_input."""
+    try:
+        with open(FAN_RPM_PATH, "r") as f:
+            return int(f.read().strip())
+    except Exception as e:
+        print(f"WARNUNG: Luefter-RPM konnte nicht gelesen werden: {e}", file=sys.stderr)
+        return -1
+
+
+def write_fan_pwm(pwm_value):
+    """Schreibt PWM-Wert (0-255) nach /sys/class/hwmon/hwmon3/pwm1."""
+    pwm_value = max(0, min(255, int(pwm_value)))
+    try:
+        # Sicherstellen dass PWM-Modus aktiv ist (1 = manuell)
+        with open(FAN_PWM_ENABLE_PATH, "w") as f:
+            f.write("1")
+        with open(FAN_PWM_PATH, "w") as f:
+            f.write(str(pwm_value))
+    except PermissionError:
+        print(f"FEHLER: Keine Berechtigung fuer {FAN_PWM_PATH}. Root-Rechte noetig!", file=sys.stderr)
+    except Exception as e:
+        print(f"WARNUNG: PWM konnte nicht geschrieben werden: {e}", file=sys.stderr)
+
+
+def calculate_auto_fan(cpu_temp):
+    """Berechnet PWM-Wert basierend auf CPU-Temperatur (Auto-Modus)."""
+    if cpu_temp < 0:
+        return 0, 0
+    for threshold, pwm, percent in FAN_AUTO_LEVELS:
+        if cpu_temp >= threshold:
+            return pwm, percent
+    return 0, 0
+
+
+def write_kbd_backlight(on):
+    """Setzt Tastaturbeleuchtung (0=aus, 1=ein)."""
+    try:
+        with open(KBD_BACKLIGHT_PATH, "w") as f:
+            f.write("1" if on else "0")
+    except PermissionError:
+        print(f"FEHLER: Keine Berechtigung fuer {KBD_BACKLIGHT_PATH}. Root-Rechte noetig!", file=sys.stderr)
+    except Exception as e:
+        print(f"WARNUNG: Tastaturbeleuchtung konnte nicht gesetzt werden: {e}", file=sys.stderr)
+
+
+def read_kbd_backlight():
+    """Liest aktuellen Zustand der Tastaturbeleuchtung."""
+    try:
+        with open(KBD_BACKLIGHT_PATH, "r") as f:
+            return int(f.read().strip()) > 0
+    except Exception:
+        return False
+
+
+def read_control_commands():
+    """Liest Steuerbefehle aus /tmp/argon_dashboard_control."""
+    global current_fan_mode, current_fan_speed, current_kbd_backlight
+    try:
+        if os.path.exists(CONTROL_FILE):
+            with open(CONTROL_FILE, "r") as f:
+                data = json.load(f)
+
+            if "fan_mode" in data:
+                mode = data["fan_mode"]
+                if mode in ("auto", "manual"):
+                    current_fan_mode = mode
+
+            if "fan_speed" in data:
+                speed = int(data["fan_speed"])
+                current_fan_speed = max(0, min(100, speed))
+
+            if "kbd_backlight" in data:
+                new_state = bool(data["kbd_backlight"])
+                if new_state != current_kbd_backlight:
+                    current_kbd_backlight = new_state
+                    write_kbd_backlight(current_kbd_backlight)
+
+    except json.JSONDecodeError:
+        pass
+    except Exception as e:
+        print(f"WARNUNG: Steuerdatei konnte nicht gelesen werden: {e}", file=sys.stderr)
 
 
 def write_status(data):
@@ -98,7 +200,6 @@ def cleanup():
             bus.close()
         except Exception:
             pass
-    # Status-Datei entfernen
     try:
         if os.path.exists(STATUS_FILE):
             os.remove(STATUS_FILE)
@@ -108,15 +209,17 @@ def cleanup():
 
 
 def main():
-    global bus, running
+    global bus, running, current_fan_mode, current_fan_speed, current_kbd_backlight
 
-    # Signal-Handler registrieren
     signal.signal(signal.SIGTERM, signal_handler)
     signal.signal(signal.SIGINT, signal_handler)
 
     print("Argon Dashboard Daemon gestartet.")
     print(f"I2C Bus: {I2C_BUS}, Batterie-Adresse: {hex(BATTERY_ADDR)}")
+    print(f"Luefter PWM: {FAN_PWM_PATH}")
+    print(f"Tastaturbeleuchtung: {KBD_BACKLIGHT_PATH}")
     print(f"Status-Datei: {STATUS_FILE}")
+    print(f"Steuer-Datei: {CONTROL_FILE}")
     print(f"Poll-Intervall: {POLL_INTERVAL}s")
 
     # I2C-Bus oeffnen
@@ -127,16 +230,38 @@ def main():
         print("Ist I2C aktiviert? Pruefe mit: ls /dev/i2c-*", file=sys.stderr)
         sys.exit(1)
 
+    # Initialen Zustand der Tastaturbeleuchtung lesen
+    current_kbd_backlight = read_kbd_backlight()
+
     try:
         while running:
+            # Steuerbefehle lesen
+            read_control_commands()
+
+            # Sensordaten lesen
             battery_percent = read_battery_percent()
             is_charging = read_charging_status()
             cpu_temp = read_cpu_temp()
+            fan_rpm = read_fan_rpm()
+
+            # Lueftersteuerung
+            if current_fan_mode == "auto":
+                pwm_value, fan_percent = calculate_auto_fan(cpu_temp)
+                write_fan_pwm(pwm_value)
+                current_fan_speed = fan_percent
+            else:
+                # Manueller Modus: Prozent -> PWM (0-100% -> 0-255)
+                pwm_value = int(current_fan_speed * 255 / 100)
+                write_fan_pwm(pwm_value)
 
             status = {
                 "battery_percent": battery_percent,
                 "is_charging": is_charging,
                 "cpu_temp": cpu_temp,
+                "fan_rpm": fan_rpm,
+                "fan_speed": current_fan_speed,
+                "fan_mode": current_fan_mode,
+                "kbd_backlight": current_kbd_backlight,
                 "timestamp": time.time()
             }
 

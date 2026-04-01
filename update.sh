@@ -51,6 +51,10 @@ cp "${SCRIPT_DIR}/src/argon_panel.sh" /usr/local/bin/argon_panel.sh
 chmod 755 /usr/local/bin/argon_panel.sh
 echo "  → argon_panel.sh ✓"
 
+cp "${SCRIPT_DIR}/src/argon_control.py" /usr/local/bin/argon_control.py
+chmod 755 /usr/local/bin/argon_control.py
+echo "  → argon_control.py ✓"
+
 cp "${SCRIPT_DIR}/src/argon-dashboard.service" /etc/systemd/system/argon-dashboard.service
 systemctl daemon-reload
 echo "  → argon-dashboard.service ✓"

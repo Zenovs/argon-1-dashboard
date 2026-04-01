@@ -76,18 +76,23 @@ if ! groups "$USER_NAME" | grep -q "\bi2c\b"; then
 fi
 
 # ── Dateien kopieren ────────────────────────────────────────
-echo -e "${YELLOW}[2/6] Kopiere Daemon-Skript...${NC}"
+echo -e "${YELLOW}[2/7] Kopiere Daemon-Skript...${NC}"
 cp "${SCRIPT_DIR}/src/argon_daemon.py" /usr/local/bin/argon_daemon.py
 chmod 755 /usr/local/bin/argon_daemon.py
 echo "  → /usr/local/bin/argon_daemon.py ✓"
 
-echo -e "${YELLOW}[3/6] Kopiere Panel-Applet...${NC}"
+echo -e "${YELLOW}[3/7] Kopiere Panel-Applet...${NC}"
 cp "${SCRIPT_DIR}/src/argon_panel.sh" /usr/local/bin/argon_panel.sh
 chmod 755 /usr/local/bin/argon_panel.sh
 echo "  → /usr/local/bin/argon_panel.sh ✓"
 
+echo -e "${YELLOW}[4/7] Kopiere Control-Panel...${NC}"
+cp "${SCRIPT_DIR}/src/argon_control.py" /usr/local/bin/argon_control.py
+chmod 755 /usr/local/bin/argon_control.py
+echo "  → /usr/local/bin/argon_control.py ✓"
+
 # ── Systemd-Service einrichten ──────────────────────────────
-echo -e "${YELLOW}[4/6] Richte Systemd-Service ein...${NC}"
+echo -e "${YELLOW}[5/7] Richte Systemd-Service ein...${NC}"
 cp "${SCRIPT_DIR}/src/argon-dashboard.service" /etc/systemd/system/argon-dashboard.service
 systemctl daemon-reload
 systemctl enable argon-dashboard.service
@@ -95,7 +100,7 @@ systemctl restart argon-dashboard.service
 echo "  → argon-dashboard.service aktiviert und gestartet ✓"
 
 # ── Genmon-Plugin zur XFCE-Taskleiste hinzufuegen ──────────
-echo -e "${YELLOW}[5/6] Konfiguriere XFCE-Panel Genmon-Plugin...${NC}"
+echo -e "${YELLOW}[6/7] Konfiguriere XFCE-Panel Genmon-Plugin...${NC}"
 
 # xfconf-query muss als User ausgefuehrt werden
 if command -v xfconf-query &>/dev/null; then
@@ -173,7 +178,7 @@ else
 fi
 
 # ── Abschluss ───────────────────────────────────────────────
-echo -e "${YELLOW}[6/6] Pruefe Installation...${NC}"
+echo -e "${YELLOW}[7/7] Pruefe Installation...${NC}"
 sleep 2
 
 if systemctl is-active --quiet argon-dashboard.service; then
@@ -192,6 +197,8 @@ with open('/tmp/argon_dashboard_status') as f:
 print(f'    Batterie: {d.get(\"battery_percent\", \"?\")}%')
 print(f'    Laedt: {d.get(\"is_charging\", \"?\")}')
 print(f'    CPU-Temp: {d.get(\"cpu_temp\", \"?\")}°C')
+print(f'    Luefter: {d.get(\"fan_rpm\", \"?\")} RPM ({d.get(\"fan_speed\", \"?\")}%, {d.get(\"fan_mode\", \"?\")})')
+print(f'    Tastatur-LED: {d.get(\"kbd_backlight\", \"?\")}')
 " 2>/dev/null || echo "  → Status-Datei noch nicht bereit"
 else
     echo "  → Status-Datei wird in wenigen Sekunden erstellt..."

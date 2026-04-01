@@ -5,8 +5,8 @@ Requires=multi-user.target
 
 [Service]
 Type=simple
-User=zenovs
-Group=zenovs
+User=root
+Group=root
 ExecStart=/usr/bin/python3 /usr/local/bin/argon_daemon.py
 Restart=always
 RestartSec=5
@@ -17,13 +17,11 @@ SyslogIdentifier=argon-dashboard
 # I2C Zugriff
 SupplementaryGroups=i2c
 
-# Sicherheit
-ProtectSystem=strict
-ReadWritePaths=/tmp
+# Sicherheit - gelockert fuer /sys/class/hwmon und /sys/class/leds Zugriff
+ProtectSystem=full
+ReadWritePaths=/tmp /sys/class/hwmon /sys/class/leds
 DeviceAllow=/dev/i2c-1 rw
-NoNewPrivileges=true
 ProtectHome=true
-ProtectKernelTunables=true
 ProtectKernelModules=true
 
 [Install]
