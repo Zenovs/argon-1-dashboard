@@ -42,8 +42,8 @@ Zeigt **Batterie-Status** und **CPU-Temperatur** direkt in der XFCE-Taskleiste a
 ### 1-Befehl-Installation
 
 ```bash
-git clone https://github.com/zenovs/argon-dashboard.git
-cd argon-dashboard
+git clone https://github.com/Zenovs/argon-1-dashboard.git
+cd argon-1-dashboard
 sudo bash install.sh
 ```
 
@@ -60,7 +60,7 @@ sudo bash install.sh
 ## 🔄 Update
 
 ```bash
-cd argon-dashboard
+cd argon-1-dashboard
 sudo bash update.sh
 ```
 
@@ -74,7 +74,7 @@ Das Update-Skript:
 ## 🗑️ Deinstallation
 
 ```bash
-cd argon-dashboard
+cd argon-1-dashboard
 sudo bash uninstall.sh
 ```
 

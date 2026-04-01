@@ -35,6 +35,7 @@ fi
 
 # ── Abhaengigkeiten installieren ────────────────────────────
 echo -e "${YELLOW}[1/6] Installiere Abhaengigkeiten...${NC}"
+apt-get update -qq 2>/dev/null || true
 
 # smbus2 installieren
 if ! python3 -c "import smbus2" 2>/dev/null; then
@@ -50,6 +51,22 @@ if ! command -v i2cdetect &>/dev/null; then
     apt-get install -y i2c-tools
 else
     echo "  → i2c-tools bereits installiert ✓"
+fi
+
+# xfce4-genmon-plugin pruefen und installieren
+if ! dpkg -l xfce4-genmon-plugin &>/dev/null; then
+    echo "  → Installiere xfce4-genmon-plugin..."
+    apt-get install -y xfce4-genmon-plugin
+else
+    echo "  → xfce4-genmon-plugin bereits installiert ✓"
+fi
+
+# xfconf pruefen und installieren
+if ! command -v xfconf-query &>/dev/null; then
+    echo "  → Installiere xfconf..."
+    apt-get install -y xfconf
+else
+    echo "  → xfconf bereits installiert ✓"
 fi
 
 # Sicherstellen dass User in i2c-Gruppe ist
@@ -125,8 +142,8 @@ if command -v xfconf-query &>/dev/null; then
             done
             PLUGIN_ARGS="$PLUGIN_ARGS -t int -s $NEW_ID"
             
-            sudo -u "$USER_NAME" DISPLAY=:0 DBUS_SESSION_BUS_ADDRESS="unix:path=/run/user/$(id -u $USER_NAME)/bus" \
-                eval xfconf-query -c xfce4-panel -p /panels/panel-1/plugin-ids --create -a $PLUGIN_ARGS 2>/dev/null || true
+            eval sudo -u "$USER_NAME" DISPLAY=:0 DBUS_SESSION_BUS_ADDRESS="unix:path=/run/user/\$(id -u $USER_NAME)/bus" \
+                xfconf-query -c xfce4-panel -p /panels/panel-1/plugin-ids --create -a $PLUGIN_ARGS 2>/dev/null || true
         fi
         
         echo "  → Genmon-Plugin #${NEW_ID} hinzugefuegt ✓"
@@ -165,7 +182,7 @@ if [ -f "/tmp/argon_dashboard_status" ]; then
 import json
 with open('/tmp/argon_dashboard_status') as f:
     d = json.load(f)
-print(f'    Batterie: {d.get(\"battery_percent\", \"?\"%)}%')
+print(f'    Batterie: {d.get(\"battery_percent\", \"?\")}%')
 print(f'    Laedt: {d.get(\"is_charging\", \"?\")}')
 print(f'    CPU-Temp: {d.get(\"cpu_temp\", \"?\")}°C')
 " 2>/dev/null || echo "  → Status-Datei noch nicht bereit"
