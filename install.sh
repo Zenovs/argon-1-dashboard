@@ -126,6 +126,13 @@ if command -v xfconf-query &>/dev/null; then
         
         sudo -u "$USER_NAME" DISPLAY=:0 DBUS_SESSION_BUS_ADDRESS="unix:path=/run/user/$(id -u $USER_NAME)/bus" \
             xfconf-query -c xfce4-panel -p /plugins/plugin-${NEW_ID}/enable-single-row -t bool -s true --create 2>/dev/null || true
+        
+        # Label "(genmon)" deaktivieren
+        sudo -u "$USER_NAME" DISPLAY=:0 DBUS_SESSION_BUS_ADDRESS="unix:path=/run/user/$(id -u $USER_NAME)/bus" \
+            xfconf-query -c xfce4-panel -p /plugins/plugin-${NEW_ID}/use-label -t bool -s false --create 2>/dev/null || true
+        
+        sudo -u "$USER_NAME" DISPLAY=:0 DBUS_SESSION_BUS_ADDRESS="unix:path=/run/user/$(id -u $USER_NAME)/bus" \
+            xfconf-query -c xfce4-panel -p /plugins/plugin-${NEW_ID}/text -t string -s "" --create 2>/dev/null || true
 
         # Plugin zur Panel-Liste hinzufuegen
         CURRENT_PLUGINS=$(sudo -u "$USER_NAME" DISPLAY=:0 DBUS_SESSION_BUS_ADDRESS="unix:path=/run/user/$(id -u $USER_NAME)/bus" \

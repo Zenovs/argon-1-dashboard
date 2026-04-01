@@ -7,7 +7,7 @@ STATUS_FILE="/tmp/argon_dashboard_status"
 
 # Fallback wenn Status-Datei nicht existiert
 if [ ! -f "$STATUS_FILE" ]; then
-    echo "<txt><span foreground='#888888'>⏳ Warte...</span></txt>"
+    echo "<txt><span foreground='#888888'>⏳ Warte...</span>   </txt>"
     echo "<tool>Argon Dashboard: Daemon laeuft nicht oder startet gerade...</tool>"
     exit 0
 fi
@@ -15,7 +15,7 @@ fi
 # Status-Datei darf nicht aelter als 10 Sekunden sein
 FILE_AGE=$(( $(date +%s) - $(stat -c %Y "$STATUS_FILE" 2>/dev/null || echo 0) ))
 if [ "$FILE_AGE" -gt 10 ]; then
-    echo "<txt><span foreground='#FF4444'>⚠ Offline</span></txt>"
+    echo "<txt><span foreground='#FF4444'>⚠ Offline</span>   </txt>"
     echo "<tool>Argon Dashboard: Daemon antwortet nicht (Status ${FILE_AGE}s alt)</tool>"
     exit 0
 fi
@@ -98,7 +98,7 @@ else
 fi
 
 # Genmon XML-Ausgabe
-echo "<txt>${BATT_ICON}<span foreground='${BATT_COLOR}'>${BATT_TEXT}</span> 🌡<span foreground='${TEMP_COLOR}'>${TEMP_TEXT}</span></txt>"
+echo "<txt>${BATT_ICON}<span foreground='${BATT_COLOR}'>${BATT_TEXT}</span> 🌡<span foreground='${TEMP_COLOR}'>${TEMP_TEXT}</span>   </txt>"
 
 # Tooltip mit Details
 if [ "$CHARGING" = "true" ]; then
