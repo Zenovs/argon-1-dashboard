@@ -31,18 +31,21 @@ CONTROL_FILE = "/tmp/argon_dashboard_control"
 FAN_CONFIG_PATH = "/etc/argon/fan_config.json"
 LID_CONFIG_PATH = "/etc/systemd/logind.conf.d/argon-lid.conf"
 LOGIND_CONF_PATH = "/etc/systemd/logind.conf"
-LOCK_SERVICE_PATH = "/etc/systemd/system/argon-lock-on-resume.service"
-LOCK_SERVICE_CONTENT = """\
-[Unit]
-Description=Argon Dashboard - Bildschirm vor Standby sperren
-Before=sleep.target
+LOCK_HOOK_PATH = "/usr/lib/systemd/system-sleep/argon-lock-screen"
+LOCK_HOOK_CONTENT = """\
+#!/bin/bash
+# Argon Dashboard - Bildschirm vor Standby sperren
+[ "$1" = "pre" ] || exit 0
 
-[Service]
-Type=oneshot
-ExecStart=/usr/bin/loginctl lock-sessions
+# Alle aktiven graphischen Sessions sperren
+for session in $(loginctl list-sessions --no-legend 2>/dev/null | awk '{print $1}'); do
+    session_type=$(loginctl show-session "$session" -p Type --value 2>/dev/null)
+    if [ "$session_type" = "x11" ] || [ "$session_type" = "wayland" ]; then
+        loginctl lock-session "$session" 2>/dev/null
+    fi
+done
 
-[Install]
-WantedBy=sleep.target
+sleep 1
 """
 
 LID_ACTIONS = [
@@ -532,77 +535,65 @@ class ArgonControlWindow(Gtk.Window):
             )
 
     def _read_lock_on_resume(self):
-        """Prueft ob der Lock-on-Resume Service aktiv ist."""
-        try:
-            result = subprocess.run(
-                ["systemctl", "is-enabled", "argon-lock-on-resume.service"],
-                capture_output=True, text=True
-            )
-            return result.stdout.strip() == "enabled"
-        except Exception:
-            return False
+        """Prueft ob der Sleep-Hook aktiv ist."""
+        return os.path.isfile(LOCK_HOOK_PATH) and os.access(LOCK_HOOK_PATH, os.X_OK)
 
     def on_lock_on_resume_toggled(self, widget):
-        """Aktiviert oder deaktiviert den Bildschirm-Sperr-Service."""
+        """Aktiviert oder deaktiviert den Sleep-Hook fuer Bildschirmsperre."""
         enable = widget.get_active()
+        tmp_path = "/tmp/argon-lock-screen"
         try:
             if enable:
-                with open(LOCK_SERVICE_PATH, "w") as f:
-                    f.write(LOCK_SERVICE_CONTENT)
-                subprocess.run(["systemctl", "daemon-reload"], capture_output=True)
-                subprocess.run(["systemctl", "enable", "argon-lock-on-resume.service"],
-                               capture_output=True)
+                with open(tmp_path, "w") as f:
+                    f.write(LOCK_HOOK_CONTENT)
+                bash_cmd = (
+                    f"mv {tmp_path} {LOCK_HOOK_PATH} && "
+                    f"chmod +x {LOCK_HOOK_PATH}"
+                )
             else:
-                subprocess.run(["systemctl", "disable", "argon-lock-on-resume.service"],
-                               capture_output=True)
-                if os.path.exists(LOCK_SERVICE_PATH):
-                    os.remove(LOCK_SERVICE_PATH)
-                subprocess.run(["systemctl", "daemon-reload"], capture_output=True)
-            self.lock_status.set_markup(
-                "<span foreground='#44CC44'>✅ Gespeichert!</span>"
-            )
-        except PermissionError:
+                bash_cmd = f"rm -f {LOCK_HOOK_PATH}"
+
+            # Direkt versuchen (falls root)
             try:
                 if enable:
-                    # In /tmp schreiben (kein Root noetig), dann mit pkexec verschieben
-                    tmp_path = "/tmp/argon-lock-on-resume.service"
-                    with open(tmp_path, "w") as f:
-                        f.write(LOCK_SERVICE_CONTENT)
-                    bash_cmd = (
-                        f"mv {tmp_path} {LOCK_SERVICE_PATH} && "
-                        f"chmod 644 {LOCK_SERVICE_PATH} && "
-                        f"systemctl daemon-reload && "
-                        f"systemctl enable argon-lock-on-resume.service"
-                    )
+                    import shutil
+                    os.makedirs(os.path.dirname(LOCK_HOOK_PATH), exist_ok=True)
+                    shutil.move(tmp_path, LOCK_HOOK_PATH)
+                    os.chmod(LOCK_HOOK_PATH, 0o755)
                 else:
-                    bash_cmd = (
-                        f"systemctl disable argon-lock-on-resume.service; "
-                        f"rm -f {LOCK_SERVICE_PATH} && "
-                        f"systemctl daemon-reload"
-                    )
-                result = subprocess.run(
-                    ["pkexec", "bash", "-c", bash_cmd],
-                    capture_output=True, text=True, timeout=30
-                )
-                if result.returncode == 0:
-                    self.lock_status.set_markup(
-                        "<span foreground='#44CC44'>✅ Gespeichert!</span>"
-                    )
-                else:
-                    self.lock_status.set_markup(
-                        "<span foreground='#FF4444'>❌ Fehler: Keine Root-Rechte erhalten.</span>"
-                    )
-                    widget.set_active(not enable)
-            except subprocess.TimeoutExpired:
+                    if os.path.exists(LOCK_HOOK_PATH):
+                        os.remove(LOCK_HOOK_PATH)
                 self.lock_status.set_markup(
-                    "<span foreground='#FF4444'>❌ Zeitueberschreitung bei Authentifizierung.</span>"
+                    "<span foreground='#44CC44'>✅ Gespeichert!</span>"
+                )
+                return
+            except PermissionError:
+                pass
+
+            # Fallback: pkexec
+            result = subprocess.run(
+                ["pkexec", "bash", "-c", bash_cmd],
+                capture_output=True, text=True, timeout=30
+            )
+            if result.returncode == 0:
+                self.lock_status.set_markup(
+                    "<span foreground='#44CC44'>✅ Gespeichert!</span>"
+                )
+            else:
+                self.lock_status.set_markup(
+                    "<span foreground='#FF4444'>❌ Fehler: Keine Root-Rechte erhalten.</span>"
                 )
                 widget.set_active(not enable)
-            except Exception as e:
-                self.lock_status.set_markup(
-                    f"<span foreground='#FF4444'>❌ Fehler: {str(e)}</span>"
-                )
-                widget.set_active(not enable)
+        except subprocess.TimeoutExpired:
+            self.lock_status.set_markup(
+                "<span foreground='#FF4444'>❌ Zeitueberschreitung bei Authentifizierung.</span>"
+            )
+            widget.set_active(not enable)
+        except Exception as e:
+            self.lock_status.set_markup(
+                f"<span foreground='#FF4444'>❌ Fehler: {str(e)}</span>"
+            )
+            widget.set_active(not enable)
         except Exception as e:
             self.lock_status.set_markup(
                 f"<span foreground='#FF4444'>❌ Fehler: {str(e)}</span>"
