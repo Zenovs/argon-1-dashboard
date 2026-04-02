@@ -55,7 +55,7 @@ class ArgonControlWindow(Gtk.Window):
 
     def __init__(self):
         super().__init__(title="Argon ONE UP CM5 - Steuerung")
-        self.set_default_size(420, 760)
+        self.set_default_size(420, 680)
         self.set_resizable(False)
         self.set_border_width(12)
         self.set_position(Gtk.WindowPosition.CENTER)
@@ -244,30 +244,6 @@ class ArgonControlWindow(Gtk.Window):
         self.curve_status = Gtk.Label()
         self.curve_status.set_halign(Gtk.Align.START)
         curve_box.pack_start(self.curve_status, False, False, 0)
-
-        # ── Tastaturbeleuchtung ──────────────────────────────
-        kbd_frame = Gtk.Frame(label=" 💡 Tastaturbeleuchtung ")
-        kbd_frame.set_margin_top(5)
-        main_box.pack_start(kbd_frame, False, False, 0)
-
-        kbd_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=10)
-        kbd_box.set_margin_top(8)
-        kbd_box.set_margin_bottom(8)
-        kbd_box.set_margin_start(10)
-        kbd_box.set_margin_end(10)
-        kbd_frame.add(kbd_box)
-
-        kbd_label = Gtk.Label(label="Beleuchtung:")
-        kbd_box.pack_start(kbd_label, False, False, 0)
-
-        self.kbd_switch = Gtk.Switch()
-        self.kbd_switch.set_active(self.kbd_backlight)
-        self.kbd_switch.connect("notify::active", self.on_kbd_toggled)
-        kbd_box.pack_start(self.kbd_switch, False, False, 0)
-
-        self.kbd_status = Gtk.Label()
-        self._update_kbd_label()
-        kbd_box.pack_start(self.kbd_status, False, False, 0)
 
         # ── Deckel-Aktion ────────────────────────────────────
         lid_frame = Gtk.Frame(label=" 🖥 Deckel zuklappen ")
