@@ -31,6 +31,19 @@ CONTROL_FILE = "/tmp/argon_dashboard_control"
 FAN_CONFIG_PATH = "/etc/argon/fan_config.json"
 LID_CONFIG_PATH = "/etc/systemd/logind.conf.d/argon-lid.conf"
 LOGIND_CONF_PATH = "/etc/systemd/logind.conf"
+LOCK_SERVICE_PATH = "/etc/systemd/system/argon-lock-on-resume.service"
+LOCK_SERVICE_CONTENT = """\
+[Unit]
+Description=Argon Dashboard - Bildschirm vor Standby sperren
+Before=sleep.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/loginctl lock-sessions
+
+[Install]
+WantedBy=sleep.target
+"""
 
 LID_ACTIONS = [
     ("suspend",      "Standby (Suspend)"),
@@ -55,7 +68,7 @@ class ArgonControlWindow(Gtk.Window):
 
     def __init__(self):
         super().__init__(title="Argon ONE UP CM5 - Steuerung")
-        self.set_default_size(420, 680)
+        self.set_default_size(420, 720)
         self.set_resizable(False)
         self.set_border_width(12)
         self.set_position(Gtk.WindowPosition.CENTER)
@@ -281,6 +294,18 @@ class ArgonControlWindow(Gtk.Window):
         self.lid_status.set_halign(Gtk.Align.START)
         lid_box.pack_start(self.lid_status, False, False, 0)
 
+        # Bildschirm sperren beim Aufwachen
+        lock_row = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=10)
+        self.lock_check = Gtk.CheckButton(label="🔒 Passwort beim Aufwachen verlangen")
+        self.lock_check.set_active(self._read_lock_on_resume())
+        self.lock_check.connect("toggled", self.on_lock_on_resume_toggled)
+        lock_row.pack_start(self.lock_check, False, False, 0)
+        lid_box.pack_start(lock_row, False, False, 0)
+
+        self.lock_status = Gtk.Label()
+        self.lock_status.set_halign(Gtk.Align.START)
+        lid_box.pack_start(self.lock_status, False, False, 0)
+
         # ── Schliessen-Button ────────────────────────────────
         close_btn = Gtk.Button(label="Schliessen")
         close_btn.set_margin_top(10)
@@ -505,6 +530,84 @@ class ArgonControlWindow(Gtk.Window):
             self.lid_status.set_markup(
                 f"<span foreground='#FF4444'>❌ Fehler: {str(e)}</span>"
             )
+
+    def _read_lock_on_resume(self):
+        """Prueft ob der Lock-on-Resume Service aktiv ist."""
+        try:
+            result = subprocess.run(
+                ["systemctl", "is-enabled", "argon-lock-on-resume.service"],
+                capture_output=True, text=True
+            )
+            return result.stdout.strip() == "enabled"
+        except Exception:
+            return False
+
+    def on_lock_on_resume_toggled(self, widget):
+        """Aktiviert oder deaktiviert den Bildschirm-Sperr-Service."""
+        enable = widget.get_active()
+        try:
+            if enable:
+                with open(LOCK_SERVICE_PATH, "w") as f:
+                    f.write(LOCK_SERVICE_CONTENT)
+                subprocess.run(["systemctl", "daemon-reload"], capture_output=True)
+                subprocess.run(["systemctl", "enable", "argon-lock-on-resume.service"],
+                               capture_output=True)
+            else:
+                subprocess.run(["systemctl", "disable", "argon-lock-on-resume.service"],
+                               capture_output=True)
+                if os.path.exists(LOCK_SERVICE_PATH):
+                    os.remove(LOCK_SERVICE_PATH)
+                subprocess.run(["systemctl", "daemon-reload"], capture_output=True)
+            self.lock_status.set_markup(
+                "<span foreground='#44CC44'>✅ Gespeichert!</span>"
+            )
+        except PermissionError:
+            try:
+                if enable:
+                    # In /tmp schreiben (kein Root noetig), dann mit pkexec verschieben
+                    tmp_path = "/tmp/argon-lock-on-resume.service"
+                    with open(tmp_path, "w") as f:
+                        f.write(LOCK_SERVICE_CONTENT)
+                    bash_cmd = (
+                        f"mv {tmp_path} {LOCK_SERVICE_PATH} && "
+                        f"chmod 644 {LOCK_SERVICE_PATH} && "
+                        f"systemctl daemon-reload && "
+                        f"systemctl enable argon-lock-on-resume.service"
+                    )
+                else:
+                    bash_cmd = (
+                        f"systemctl disable argon-lock-on-resume.service; "
+                        f"rm -f {LOCK_SERVICE_PATH} && "
+                        f"systemctl daemon-reload"
+                    )
+                result = subprocess.run(
+                    ["pkexec", "bash", "-c", bash_cmd],
+                    capture_output=True, text=True, timeout=30
+                )
+                if result.returncode == 0:
+                    self.lock_status.set_markup(
+                        "<span foreground='#44CC44'>✅ Gespeichert!</span>"
+                    )
+                else:
+                    self.lock_status.set_markup(
+                        "<span foreground='#FF4444'>❌ Fehler: Keine Root-Rechte erhalten.</span>"
+                    )
+                    widget.set_active(not enable)
+            except subprocess.TimeoutExpired:
+                self.lock_status.set_markup(
+                    "<span foreground='#FF4444'>❌ Zeitueberschreitung bei Authentifizierung.</span>"
+                )
+                widget.set_active(not enable)
+            except Exception as e:
+                self.lock_status.set_markup(
+                    f"<span foreground='#FF4444'>❌ Fehler: {str(e)}</span>"
+                )
+                widget.set_active(not enable)
+        except Exception as e:
+            self.lock_status.set_markup(
+                f"<span foreground='#FF4444'>❌ Fehler: {str(e)}</span>"
+            )
+            widget.set_active(not enable)
 
     def _write_control(self):
         """Schreibt Steuerbefehle nach /tmp/argon_dashboard_control."""
