@@ -29,6 +29,17 @@ except Exception:
 STATUS_FILE = "/tmp/argon_dashboard_status"
 CONTROL_FILE = "/tmp/argon_dashboard_control"
 FAN_CONFIG_PATH = "/etc/argon/fan_config.json"
+LID_CONFIG_PATH = "/etc/systemd/logind.conf.d/argon-lid.conf"
+LOGIND_CONF_PATH = "/etc/systemd/logind.conf"
+
+LID_ACTIONS = [
+    ("suspend",      "Standby (Suspend)"),
+    ("hibernate",    "Ruhezustand (Hibernate)"),
+    ("hybrid-sleep", "Hybrid-Schlaf"),
+    ("lock",         "Bildschirm sperren"),
+    ("ignore",       "Nichts tun"),
+    ("poweroff",     "Ausschalten"),
+]
 
 DEFAULT_FAN_CURVE = [
     {"temp": 50, "speed": 0},
@@ -44,7 +55,7 @@ class ArgonControlWindow(Gtk.Window):
 
     def __init__(self):
         super().__init__(title="Argon ONE UP CM5 - Steuerung")
-        self.set_default_size(420, 620)
+        self.set_default_size(420, 760)
         self.set_resizable(False)
         self.set_border_width(12)
         self.set_position(Gtk.WindowPosition.CENTER)
@@ -258,6 +269,42 @@ class ArgonControlWindow(Gtk.Window):
         self._update_kbd_label()
         kbd_box.pack_start(self.kbd_status, False, False, 0)
 
+        # ── Deckel-Aktion ────────────────────────────────────
+        lid_frame = Gtk.Frame(label=" 🖥 Deckel zuklappen ")
+        lid_frame.set_margin_top(5)
+        main_box.pack_start(lid_frame, False, False, 0)
+
+        lid_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=8)
+        lid_box.set_margin_top(8)
+        lid_box.set_margin_bottom(8)
+        lid_box.set_margin_start(10)
+        lid_box.set_margin_end(10)
+        lid_frame.add(lid_box)
+
+        lid_row = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=10)
+        lid_label = Gtk.Label(label="Aktion:")
+        lid_row.pack_start(lid_label, False, False, 0)
+
+        self.lid_combo = Gtk.ComboBoxText()
+        for _, label in LID_ACTIONS:
+            self.lid_combo.append_text(label)
+        current_action = self._read_lid_action()
+        action_keys = [a[0] for a in LID_ACTIONS]
+        if current_action in action_keys:
+            self.lid_combo.set_active(action_keys.index(current_action))
+        else:
+            self.lid_combo.set_active(0)
+        lid_row.pack_start(self.lid_combo, True, True, 0)
+
+        lid_apply_btn = Gtk.Button(label="✅ Anwenden")
+        lid_apply_btn.connect("clicked", self.on_save_lid_action)
+        lid_row.pack_start(lid_apply_btn, False, False, 0)
+        lid_box.pack_start(lid_row, False, False, 0)
+
+        self.lid_status = Gtk.Label()
+        self.lid_status.set_halign(Gtk.Align.START)
+        lid_box.pack_start(self.lid_status, False, False, 0)
+
         # ── Schliessen-Button ────────────────────────────────
         close_btn = Gtk.Button(label="Schliessen")
         close_btn.set_margin_top(10)
@@ -418,6 +465,70 @@ class ArgonControlWindow(Gtk.Window):
         self.curve_status.set_markup(
             "<span foreground='#FF8800'>🔄 Standard wiederhergestellt. Klicke 'Speichern' zum Uebernehmen.</span>"
         )
+
+    def _read_lid_action(self):
+        """Liest aktuelle Deckel-Aktion aus logind-Konfiguration."""
+        for path in [LID_CONFIG_PATH, LOGIND_CONF_PATH]:
+            try:
+                if os.path.exists(path):
+                    with open(path, "r") as f:
+                        for line in f:
+                            line = line.strip()
+                            if line.startswith("HandleLidSwitch=") and not line.startswith("#"):
+                                return line.split("=", 1)[1].strip()
+            except Exception:
+                pass
+        return "suspend"
+
+    def on_save_lid_action(self, widget):
+        """Speichert Deckel-Aktion nach /etc/systemd/logind.conf.d/argon-lid.conf."""
+        idx = self.lid_combo.get_active()
+        if idx < 0:
+            return
+        action = LID_ACTIONS[idx][0]
+
+        try:
+            os.makedirs("/etc/systemd/logind.conf.d", exist_ok=True)
+            with open(LID_CONFIG_PATH, "w") as f:
+                f.write(f"[Login]\nHandleLidSwitch={action}\n")
+            subprocess.run(["systemctl", "reload", "systemd-logind"],
+                           capture_output=True, timeout=10)
+            self.lid_status.set_markup(
+                "<span foreground='#44CC44'>✅ Gespeichert! Aktiv ab naechstem Deckel-Zuklappen.</span>"
+            )
+        except PermissionError:
+            try:
+                bash_cmd = (
+                    f"mkdir -p /etc/systemd/logind.conf.d && "
+                    f"printf '[Login]\\nHandleLidSwitch={action}\\n' "
+                    f"> {LID_CONFIG_PATH} && "
+                    f"chmod 644 {LID_CONFIG_PATH} && "
+                    f"systemctl reload systemd-logind"
+                )
+                result = subprocess.run(
+                    ["pkexec", "bash", "-c", bash_cmd],
+                    capture_output=True, text=True, timeout=30
+                )
+                if result.returncode == 0:
+                    self.lid_status.set_markup(
+                        "<span foreground='#44CC44'>✅ Gespeichert! Aktiv ab naechstem Deckel-Zuklappen.</span>"
+                    )
+                else:
+                    self.lid_status.set_markup(
+                        "<span foreground='#FF4444'>❌ Fehler: Keine Root-Rechte erhalten.</span>"
+                    )
+            except subprocess.TimeoutExpired:
+                self.lid_status.set_markup(
+                    "<span foreground='#FF4444'>❌ Fehler: Zeitueberschreitung bei Authentifizierung.</span>"
+                )
+            except Exception as e:
+                self.lid_status.set_markup(
+                    f"<span foreground='#FF4444'>❌ Fehler: {str(e)}</span>"
+                )
+        except Exception as e:
+            self.lid_status.set_markup(
+                f"<span foreground='#FF4444'>❌ Fehler: {str(e)}</span>"
+            )
 
     def _write_control(self):
         """Schreibt Steuerbefehle nach /tmp/argon_dashboard_control."""
