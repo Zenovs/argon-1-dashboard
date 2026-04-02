@@ -1,7 +1,8 @@
 #!/bin/bash
 # -*- coding: utf-8 -*-
 # Argon ONE UP CM5 Dashboard - Update-Skript
-# Muss als root ausgefuehrt werden: sudo bash update.sh
+# Verwendung: curl -fsSL https://raw.githubusercontent.com/Zenovs/argon-1-dashboard/main/update.sh | sudo bash
+# Oder lokal: sudo bash update.sh
 
 set -e
 
@@ -10,7 +11,9 @@ GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
 NC='\033[0m'
 
-SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+REPO="Zenovs/argon-1-dashboard"
+BRANCH="main"
+RAW_BASE="https://raw.githubusercontent.com/${REPO}/${BRANCH}"
 
 echo -e "${GREEN}╔══════════════════════════════════════════════╗${NC}"
 echo -e "${GREEN}║  Argon ONE UP CM5 Dashboard - Update         ║${NC}"
@@ -24,38 +27,58 @@ if [ "$(id -u)" -ne 0 ]; then
     exit 1
 fi
 
-# Git Pull
-echo -e "${YELLOW}[1/4] Aktualisiere Repository...${NC}"
-cd "$SCRIPT_DIR"
-if [ -d ".git" ]; then
+SCRIPT_DIR="$(cd "$(dirname "$0")" 2>/dev/null && pwd)"
+
+# Bestimme ob lokales Repo vorhanden ist
+USE_LOCAL=false
+if [ -f "${SCRIPT_DIR}/src/argon_daemon.py" ]; then
+    USE_LOCAL=true
+fi
+
+# Hilfsfunktion: Datei aus GitHub laden oder lokal kopieren
+fetch_file() {
+    local src_path="$1"   # relativer Pfad im Repo (z.B. src/argon_daemon.py)
+    local dest="$2"        # Zieldatei
+    local mode="$3"        # chmod-Wert
+
+    if [ "$USE_LOCAL" = true ]; then
+        cp "${SCRIPT_DIR}/${src_path}" "$dest"
+    else
+        curl -fsSL "${RAW_BASE}/${src_path}" -o "$dest"
+    fi
+    chmod "$mode" "$dest"
+}
+
+# Git Pull (nur wenn lokales Repo vorhanden)
+echo -e "${YELLOW}[1/5] Aktualisiere Repository...${NC}"
+if [ "$USE_LOCAL" = true ] && [ -d "${SCRIPT_DIR}/.git" ]; then
+    cd "$SCRIPT_DIR"
     git pull origin main 2>/dev/null || git pull origin master 2>/dev/null || {
         echo -e "${YELLOW}  ⚠ Git Pull fehlgeschlagen. Ueberspringe...${NC}"
     }
     echo "  → Repository aktualisiert ✓"
 else
-    echo "  → Kein Git-Repository gefunden, ueberspringe Pull"
+    echo "  → Lade Dateien von GitHub (${REPO})..."
 fi
 
 # Daemon stoppen
-echo -e "${YELLOW}[2/4] Stoppe Daemon...${NC}"
+echo -e "${YELLOW}[2/5] Stoppe Daemon...${NC}"
 systemctl stop argon-dashboard.service 2>/dev/null || true
 echo "  → Daemon gestoppt ✓"
 
 # Dateien aktualisieren
 echo -e "${YELLOW}[3/5] Aktualisiere Dateien...${NC}"
-cp "${SCRIPT_DIR}/src/argon_daemon.py" /usr/local/bin/argon_daemon.py
-chmod 755 /usr/local/bin/argon_daemon.py
+
+fetch_file "src/argon_daemon.py"  /usr/local/bin/argon_daemon.py  755
 echo "  → argon_daemon.py ✓"
 
-cp "${SCRIPT_DIR}/src/argon_panel.sh" /usr/local/bin/argon_panel.sh
-chmod 755 /usr/local/bin/argon_panel.sh
+fetch_file "src/argon_panel.sh"   /usr/local/bin/argon_panel.sh   755
 echo "  → argon_panel.sh ✓"
 
-cp "${SCRIPT_DIR}/src/argon_control.py" /usr/local/bin/argon_control.py
-chmod 755 /usr/local/bin/argon_control.py
+fetch_file "src/argon_control.py" /usr/local/bin/argon_control.py 755
 echo "  → argon_control.py ✓"
 
-cp "${SCRIPT_DIR}/src/argon-dashboard.service" /etc/systemd/system/argon-dashboard.service
+fetch_file "src/argon-dashboard.service" /etc/systemd/system/argon-dashboard.service 644
 systemctl daemon-reload
 echo "  → argon-dashboard.service ✓"
 
@@ -63,8 +86,7 @@ echo "  → argon-dashboard.service ✓"
 echo -e "${YELLOW}[4/5] Pruefe Luefter-Konfiguration...${NC}"
 mkdir -p /etc/argon
 if [ ! -f /etc/argon/fan_config.json ]; then
-    cp "${SCRIPT_DIR}/src/fan_config.json" /etc/argon/fan_config.json
-    chmod 644 /etc/argon/fan_config.json
+    fetch_file "src/fan_config.json" /etc/argon/fan_config.json 644
     chown root:root /etc/argon/fan_config.json
     echo "  → /etc/argon/fan_config.json erstellt ✓"
 else
