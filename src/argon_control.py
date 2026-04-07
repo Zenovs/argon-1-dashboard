@@ -113,7 +113,7 @@ class ArgonControlWindow(Gtk.Window):
         status_frame.add(status_grid)
 
         # Status-Labels
-        labels = ["🔋 Batterie:", "🌡 CPU-Temp:", "🌀 Luefter:"]
+        labels = ["🔋 Batterie:", "🌡 CPU-Temp:", "🌀 Luefter:", "🔌 Netzstrom:", "⏱ Restzeit:"]
         self.status_values = []
         for i, text in enumerate(labels):
             lbl = Gtk.Label(label=text)
@@ -665,6 +665,34 @@ class ArgonControlWindow(Gtk.Window):
             else:
                 fan_text = f"<b>{fan_rpm} RPM</b> ({fan_speed}%, {mode_text})"
             self.status_values[2].set_markup(fan_text)
+
+            # Netzstrom / Ladestatus
+            charging = data.get("is_charging")
+            if charging is None:
+                power_text = "--"
+            elif charging:
+                power_text = "<span foreground='#44CC44'><b>⚡ Eingesteckt (Laedt)</b></span>"
+            else:
+                power_text = "<span foreground='#FF8800'>🔋 Kabel getrennt</span>"
+            self.status_values[3].set_markup(power_text)
+
+            # Restzeit
+            time_remaining = data.get("time_remaining")
+            battery_rate = data.get("battery_rate", 0)
+            if time_remaining is None:
+                if len(data) > 0:
+                    time_text = "<span foreground='#888888'><i>Berechne...</i></span>"
+                else:
+                    time_text = "--"
+            else:
+                h = int(time_remaining // 60)
+                m = int(time_remaining % 60)
+                if charging:
+                    time_text = f"<span foreground='#44CC44'>Voll in <b>{h}:{m:02d} h</b></span>"
+                else:
+                    color = "#FF4444" if time_remaining < 30 else "#FF8800" if time_remaining < 60 else "#44CC44"
+                    time_text = f"<span foreground='{color}'>Leer in <b>{h}:{m:02d} h</b></span>"
+            self.status_values[4].set_markup(time_text)
 
             # UI-Zustand synchronisieren (ohne Rueckkopplung)
             self._updating = True

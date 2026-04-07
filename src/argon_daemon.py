@@ -62,6 +62,8 @@ current_fan_speed = 0  # Prozent (0-100)
 current_kbd_backlight = False
 fan_curve = list(DEFAULT_FAN_CURVE)  # Aktive Luefter-Kurve
 fan_config_mtime = 0  # Letzte Aenderungszeit der Konfigurationsdatei
+battery_history = []  # (timestamp, percent) fuer Zeitschätzung
+HISTORY_SIZE = 300   # 10 Minuten bei 2s Intervall
 
 
 def signal_handler(signum, frame):
@@ -211,6 +213,31 @@ def calculate_auto_fan(cpu_temp):
     return 0, 0
 
 
+def estimate_battery_time(current_pct):
+    """Schaetzt verbleibende Lade/Entladezeit in Minuten. Gibt (rate_%/h, min) zurueck."""
+    if len(battery_history) < 60 or current_pct < 0:
+        return 0.0, None
+
+    t1, p1 = battery_history[0]
+    t2, p2 = battery_history[-1]
+    dt_hours = (t2 - t1) / 3600.0
+
+    if dt_hours < 0.01:
+        return 0.0, None
+
+    rate = (p2 - p1) / dt_hours  # %/Stunde, positiv=laedt, negativ=entlaedt
+
+    if abs(rate) < 0.1:
+        return 0.0, None
+
+    if rate < 0 and current_pct > 0:
+        return rate, (current_pct / abs(rate)) * 60
+    elif rate > 0 and current_pct < 100:
+        return rate, ((100 - current_pct) / rate) * 60
+
+    return rate, None
+
+
 def write_kbd_backlight(on):
     """Setzt Tastaturbeleuchtung (0=aus, 1=ein)."""
     try:
@@ -329,6 +356,14 @@ def main():
             cpu_temp = read_cpu_temp()
             fan_rpm = read_fan_rpm()
 
+            # Akkuverlauf aktualisieren
+            if battery_percent >= 0:
+                battery_history.append((time.time(), battery_percent))
+                if len(battery_history) > HISTORY_SIZE:
+                    battery_history.pop(0)
+
+            battery_rate, time_remaining = estimate_battery_time(battery_percent)
+
             # Lueftersteuerung
             if current_fan_mode == "auto":
                 pwm_value, fan_percent = calculate_auto_fan(cpu_temp)
@@ -342,6 +377,8 @@ def main():
             status = {
                 "battery_percent": battery_percent,
                 "is_charging": is_charging,
+                "battery_rate": battery_rate,
+                "time_remaining": time_remaining,
                 "cpu_temp": cpu_temp,
                 "fan_rpm": fan_rpm,
                 "fan_speed": current_fan_speed,
