@@ -27,9 +27,9 @@ except ImportError:
 # Konfiguration
 I2C_BUS = 1
 BATTERY_ADDR = 0x64
-BATTERY_PERCENT_REG = 0x0D
-BATTERY_PERCENT_WORD_REG = 0x0C  # 16-bit little-endian: 0x0C=low, 0x0D=high → /256 = %
-BATTERY_STATUS_REG = 0x00
+BATTERY_PERCENT_REG = 0x04   # CW2217: SOC Register (0-100%)
+BATTERY_CHARGE_REG = 0x0E   # CW2217: < 0x80 = laedt, >= 0x80 = entlaedt
+CW2217_MODE_REG = 0x08      # CW2217: Sleep/Mode Register
 CPU_TEMP_PATH = "/sys/class/thermal/thermal_zone0/temp"
 STATUS_FILE = "/tmp/argon_dashboard_status"
 CONTROL_FILE = "/tmp/argon_dashboard_control"
@@ -74,8 +74,20 @@ def signal_handler(signum, frame):
     running = False
 
 
+def init_cw2217():
+    """Initialisiert CW2217 Chip (weckt aus Sleep-Modus)."""
+    try:
+        bus.write_byte_data(BATTERY_ADDR, CW2217_MODE_REG, 0x30)
+        time.sleep(0.2)
+        bus.write_byte_data(BATTERY_ADDR, CW2217_MODE_REG, 0x00)
+        time.sleep(0.5)
+        print("CW2217 Chip initialisiert.")
+    except Exception as e:
+        print(f"WARNUNG: CW2217 Initialisierung fehlgeschlagen: {e}", file=sys.stderr)
+
+
 def read_battery_percent():
-    """Liest Batterie-Prozent von I2C Register 0x0D (0-100, ganzzahlig)."""
+    """Liest Batterie-Prozent von CW2217 Register 0x04 (0-100%)."""
     try:
         value = bus.read_byte_data(BATTERY_ADDR, BATTERY_PERCENT_REG)
         return float(max(0, min(100, value)))
@@ -85,10 +97,10 @@ def read_battery_percent():
 
 
 def read_charging_status():
-    """Liest Lade-Status von I2C Register 0x00 (Bit 7: 1=entlaedt, 0=laedt)."""
+    """Liest Lade-Status von CW2217 Register 0x0E (< 0x80 = laedt)."""
     try:
-        value = bus.read_byte_data(BATTERY_ADDR, BATTERY_STATUS_REG)
-        return not bool(value & 0x80)
+        value = bus.read_byte_data(BATTERY_ADDR, BATTERY_CHARGE_REG)
+        return value < 0x80
     except Exception as e:
         print(f"WARNUNG: Lade-Status konnte nicht gelesen werden: {e}", file=sys.stderr)
         return None
@@ -338,6 +350,9 @@ def main():
         print("Ist I2C aktiviert? Pruefe mit: ls /dev/i2c-*", file=sys.stderr)
         sys.exit(1)
 
+    # CW2217 Chip initialisieren (aus Sleep-Modus wecken)
+    init_cw2217()
+
     # Initialen Zustand der Tastaturbeleuchtung lesen
     current_kbd_backlight = read_kbd_backlight()
 
@@ -354,6 +369,7 @@ def main():
 
             # Sensordaten lesen
             battery_percent = read_battery_percent()
+            is_charging = read_charging_status()
             cpu_temp = read_cpu_temp()
             fan_rpm = read_fan_rpm()
 
@@ -377,6 +393,7 @@ def main():
 
             status = {
                 "battery_percent": battery_percent,
+                "is_charging": is_charging,
                 "battery_rate": battery_rate,
                 "time_remaining": time_remaining,
                 "cpu_temp": cpu_temp,

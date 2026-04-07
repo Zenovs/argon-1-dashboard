@@ -27,6 +27,13 @@ try:
     with open('/tmp/argon_dashboard_status') as f:
         d = json.load(f)
     print(f'BATTERY={int(d.get("battery_percent", -1))}')
+    v = d.get('is_charging')
+    if v is True:
+        print('CHARGING=true')
+    elif v is False:
+        print('CHARGING=false')
+    else:
+        print('CHARGING=unknown')
     print(f'TEMP={d.get("cpu_temp", -1)}')
     print(f'FAN_RPM={d.get("fan_rpm", -1)}')
     print(f'FAN_SPEED={d.get("fan_speed", 0)}')
@@ -42,6 +49,7 @@ try:
     print(f'BATTERY_STABLE={str(d.get("battery_stable", False)).lower()}')
 except Exception as e:
     print('BATTERY=-1')
+    print('CHARGING=unknown')
     print('TEMP=-1')
     print('FAN_RPM=-1')
     print('FAN_SPEED=0')
@@ -51,7 +59,12 @@ except Exception as e:
 PYEOF
 )"
 
-BATT_ICON="🔋"
+# Batterie-Icon
+if [ "$CHARGING" = "true" ]; then
+    BATT_ICON="⚡"
+else
+    BATT_ICON="🔋"
+fi
 
 # Restzeit-Anzeige aufbereiten
 if [ -n "$TIME_H" ]; then
