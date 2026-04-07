@@ -214,28 +214,29 @@ def calculate_auto_fan(cpu_temp):
 
 
 def estimate_battery_time(current_pct):
-    """Schaetzt verbleibende Lade/Entladezeit in Minuten. Gibt (rate_%/h, min) zurueck."""
-    if len(battery_history) < 60 or current_pct < 0:
-        return 0.0, None
+    """Schaetzt verbleibende Lade/Entladezeit in Minuten.
+    Gibt (rate_%/h, time_min_or_None, stable_bool) zurueck."""
+    if len(battery_history) < 30 or current_pct < 0:
+        return 0.0, None, False
 
     t1, p1 = battery_history[0]
     t2, p2 = battery_history[-1]
     dt_hours = (t2 - t1) / 3600.0
 
-    if dt_hours < 0.01:
-        return 0.0, None
+    if dt_hours < 0.005:
+        return 0.0, None, False
 
     rate = (p2 - p1) / dt_hours  # %/Stunde, positiv=laedt, negativ=entlaedt
 
     if abs(rate) < 0.1:
-        return 0.0, None
+        return 0.0, None, True  # Genuegend Daten, aber stabil
 
     if rate < 0 and current_pct > 0:
-        return rate, (current_pct / abs(rate)) * 60
+        return rate, (current_pct / abs(rate)) * 60, False
     elif rate > 0 and current_pct < 100:
-        return rate, ((100 - current_pct) / rate) * 60
+        return rate, ((100 - current_pct) / rate) * 60, False
 
-    return rate, None
+    return rate, None, False
 
 
 def write_kbd_backlight(on):
@@ -361,13 +362,13 @@ def main():
                 if len(battery_history) > HISTORY_SIZE:
                     battery_history.pop(0)
 
-            battery_rate, time_remaining = estimate_battery_time(battery_percent)
+            battery_rate, time_remaining, battery_stable = estimate_battery_time(battery_percent)
 
             # Ladestatus aus Rate ableiten (I2C-Register aendert sich nicht)
-            if len(battery_history) >= 60 and abs(battery_rate) > 0.3:
+            if len(battery_history) >= 30 and abs(battery_rate) > 0.3:
                 is_charging = battery_rate > 0
             else:
-                is_charging = None  # Noch zu wenig Daten
+                is_charging = None  # Noch zu wenig Daten oder stabil
 
             # Lueftersteuerung
             if current_fan_mode == "auto":
@@ -384,6 +385,7 @@ def main():
                 "is_charging": is_charging,
                 "battery_rate": battery_rate,
                 "time_remaining": time_remaining,
+                "battery_stable": battery_stable,
                 "cpu_temp": cpu_temp,
                 "fan_rpm": fan_rpm,
                 "fan_speed": current_fan_speed,

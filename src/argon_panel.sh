@@ -38,6 +38,14 @@ try:
     print(f'FAN_RPM={d.get(\"fan_rpm\", -1)}')
     print(f'FAN_SPEED={d.get(\"fan_speed\", 0)}')
     print(f'FAN_MODE={d.get(\"fan_mode\", \"auto\")}')
+    tr = d.get('time_remaining')
+    if tr is None:
+        print('TIME_REMAINING=')
+    else:
+        h = int(tr // 60)
+        m = int(tr % 60)
+        print(f'TIME_REMAINING={h}:{m:02d}h')
+    print(f'BATTERY_STABLE={str(d.get(\"battery_stable\", False)).lower()}')
 except:
     print('BATTERY=-1')
     print('CHARGING=unknown')
@@ -45,13 +53,24 @@ except:
     print('FAN_RPM=-1')
     print('FAN_SPEED=0')
     print('FAN_MODE=auto')
+    print('TIME_REMAINING=')
+    print('BATTERY_STABLE=false')
 " 2>/dev/null)
 
 # Batterie-Icon und Farbe bestimmen
 if [ "$CHARGING" = "true" ]; then
-    BATT_ICON="🔌"
+    BATT_ICON="⚡"
 else
     BATT_ICON="🔋"
+fi
+
+# Restzeit-Anzeige aufbereiten
+if [ -n "$TIME_REMAINING" ]; then
+    TIME_TEXT=" ${TIME_REMAINING}"
+elif [ "$BATTERY_STABLE" = "true" ]; then
+    TIME_TEXT=""
+else
+    TIME_TEXT=""
 fi
 
 # Batterie-Farbcodierung
@@ -105,7 +124,7 @@ else
 fi
 
 # Genmon XML-Ausgabe
-echo "<txt>${BATT_ICON}<span foreground='${BATT_COLOR}'>${BATT_TEXT}</span>  <span foreground='#666666'>|</span>  🌡<span foreground='${TEMP_COLOR}'>${TEMP_TEXT}</span>  <span foreground='#666666'>|</span>  🌀<span foreground='${FAN_COLOR}'>${FAN_TEXT}</span>   </txt>"
+echo "<txt>${BATT_ICON}<span foreground='${BATT_COLOR}'>${BATT_TEXT}${TIME_TEXT}</span>  <span foreground='#666666'>|</span>  🌡<span foreground='${TEMP_COLOR}'>${TEMP_TEXT}</span>  <span foreground='#666666'>|</span>  🌀<span foreground='${FAN_COLOR}'>${FAN_TEXT}</span>   </txt>"
 
 # Click-Handler: Control-Panel oeffnen
 echo "<txtclick>python3 /usr/local/bin/argon_control.py &</txtclick>"
@@ -128,4 +147,7 @@ fi
 FAN_RPM_TEXT="${FAN_RPM}"
 [ "$FAN_RPM" -eq -1 ] 2>/dev/null && FAN_RPM_TEXT="--"
 
-echo "<tool>Argon ONE UP CM5 Dashboard\n━━━━━━━━━━━━━━━━━━━━━━━\nBatterie: ${BATT_TEXT} (${CHARGE_TEXT})\nCPU-Temp: ${TEMP_TEXT}\nLuefter: ${FAN_RPM_TEXT} RPM (${FAN_MODE_TEXT}, ${FAN_SPEED}%)\n━━━━━━━━━━━━━━━━━━━━━━━\nKlicken fuer Steuerung</tool>"
+TIME_TOOLTIP=""
+[ -n "$TIME_REMAINING" ] && TIME_TOOLTIP="\nRestzeit: ${TIME_REMAINING}"
+
+echo "<tool>Argon ONE UP CM5 Dashboard\n━━━━━━━━━━━━━━━━━━━━━━━\nBatterie: ${BATT_TEXT} (${CHARGE_TEXT})${TIME_TOOLTIP}\nCPU-Temp: ${TEMP_TEXT}\nLuefter: ${FAN_RPM_TEXT} RPM (${FAN_MODE_TEXT}, ${FAN_SPEED}%)\n━━━━━━━━━━━━━━━━━━━━━━━\nKlicken fuer Steuerung</tool>"

@@ -668,9 +668,11 @@ class ArgonControlWindow(Gtk.Window):
 
             # Netzstrom / Ladestatus (aus Rate abgeleitet)
             charging = data.get("is_charging")
-            battery_rate = data.get("battery_rate", 0)
-            if charging is None:
-                power_text = "<span foreground='#888888'><i>Berechne... (ca. 2 Min)</i></span>"
+            battery_stable = data.get("battery_stable", False)
+            if charging is None and not battery_stable:
+                power_text = "<span foreground='#888888'><i>Berechne... (ca. 1 Min)</i></span>"
+            elif charging is None and battery_stable:
+                power_text = "<span foreground='#888888'>Stabil (kein Kabel erkannt)</span>"
             elif charging:
                 power_text = "<span foreground='#44CC44'><b>⚡ Laedt</b></span>"
             else:
@@ -679,7 +681,9 @@ class ArgonControlWindow(Gtk.Window):
 
             # Restzeit
             time_remaining = data.get("time_remaining")
-            if time_remaining is None:
+            if time_remaining is None and battery_stable:
+                time_text = "<span foreground='#888888'>Stabil</span>"
+            elif time_remaining is None:
                 time_text = "<span foreground='#888888'><i>Berechne...</i></span>"
             else:
                 h = int(time_remaining // 60)
