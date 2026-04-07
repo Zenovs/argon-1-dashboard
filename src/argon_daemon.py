@@ -64,7 +64,7 @@ current_kbd_backlight = False
 fan_curve = list(DEFAULT_FAN_CURVE)  # Aktive Luefter-Kurve
 fan_config_mtime = 0  # Letzte Aenderungszeit der Konfigurationsdatei
 battery_history = []  # (timestamp, percent) fuer Zeitschätzung
-HISTORY_SIZE = 300   # 10 Minuten bei 2s Intervall
+HISTORY_SIZE = 1800  # 60 Minuten bei 2s Intervall
 
 
 def signal_handler(signum, frame):
@@ -357,9 +357,6 @@ def main():
             cpu_temp = read_cpu_temp()
             fan_rpm = read_fan_rpm()
 
-            # Ladestatus direkt vom I2C-Register lesen
-            is_charging = read_charging_status()
-
             # Akkuverlauf aktualisieren
             if battery_percent >= 0:
                 battery_history.append((time.time(), battery_percent))
@@ -367,6 +364,14 @@ def main():
                     battery_history.pop(0)
 
             battery_rate, time_remaining, battery_stable = estimate_battery_time(battery_percent)
+
+            # Ladestatus aus Rate ableiten (I2C-Register aendert sich nicht beim Laden)
+            if battery_rate > 0.5:
+                is_charging = True
+            elif battery_rate < -0.5:
+                is_charging = False
+            else:
+                is_charging = None  # Unbekannt oder stabil
 
             # Lueftersteuerung
             if current_fan_mode == "auto":
