@@ -26,7 +26,7 @@ import json, sys
 try:
     with open('$STATUS_FILE') as f:
         d = json.load(f)
-    print(f'BATTERY={int(d.get("battery_percent", -1))}')
+    print(f'BATTERY={int(d.get(\"battery_percent\", -1))}')
     v = d.get('is_charging')
     if v is None:
         print('CHARGING=unknown')
