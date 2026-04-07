@@ -357,6 +357,9 @@ def main():
             cpu_temp = read_cpu_temp()
             fan_rpm = read_fan_rpm()
 
+            # Ladestatus direkt vom I2C-Register lesen
+            is_charging = read_charging_status()
+
             # Akkuverlauf aktualisieren
             if battery_percent >= 0:
                 battery_history.append((time.time(), battery_percent))
@@ -364,12 +367,6 @@ def main():
                     battery_history.pop(0)
 
             battery_rate, time_remaining, battery_stable = estimate_battery_time(battery_percent)
-
-            # Ladestatus aus Rate ableiten (I2C-Register aendert sich nicht)
-            if len(battery_history) >= 30 and abs(battery_rate) > 0.3:
-                is_charging = battery_rate > 0
-            else:
-                is_charging = None  # Noch zu wenig Daten oder stabil
 
             # Lueftersteuerung
             if current_fan_mode == "auto":
