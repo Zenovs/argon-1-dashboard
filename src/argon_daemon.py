@@ -27,8 +27,8 @@ except ImportError:
 # Konfiguration
 I2C_BUS = 1
 BATTERY_ADDR = 0x64
-BATTERY_PERCENT_REG = 0x04
-BATTERY_CHARGE_REG = 0x0E
+BATTERY_PERCENT_REG = 0x0D
+BATTERY_STATUS_REG = 0x00
 CPU_TEMP_PATH = "/sys/class/thermal/thermal_zone0/temp"
 STATUS_FILE = "/tmp/argon_dashboard_status"
 CONTROL_FILE = "/tmp/argon_dashboard_control"
@@ -82,10 +82,10 @@ def read_battery_percent():
 
 
 def read_charging_status():
-    """Liest Lade-Status von I2C Register 0x0E."""
+    """Liest Lade-Status von I2C Register 0x00 (Bit 7: 1=entlaedt, 0=laedt)."""
     try:
-        value = bus.read_byte_data(BATTERY_ADDR, BATTERY_CHARGE_REG)
-        return value < 0x80
+        value = bus.read_byte_data(BATTERY_ADDR, BATTERY_STATUS_REG)
+        return not bool(value & 0x80)
     except Exception as e:
         print(f"WARNUNG: Lade-Status konnte nicht gelesen werden: {e}", file=sys.stderr)
         return None
