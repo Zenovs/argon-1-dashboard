@@ -666,24 +666,21 @@ class ArgonControlWindow(Gtk.Window):
                 fan_text = f"<b>{fan_rpm} RPM</b> ({fan_speed}%, {mode_text})"
             self.status_values[2].set_markup(fan_text)
 
-            # Netzstrom / Ladestatus
+            # Netzstrom / Ladestatus (aus Rate abgeleitet)
             charging = data.get("is_charging")
+            battery_rate = data.get("battery_rate", 0)
             if charging is None:
-                power_text = "--"
+                power_text = "<span foreground='#888888'><i>Berechne... (ca. 2 Min)</i></span>"
             elif charging:
-                power_text = "<span foreground='#44CC44'><b>⚡ Eingesteckt (Laedt)</b></span>"
+                power_text = "<span foreground='#44CC44'><b>⚡ Laedt</b></span>"
             else:
-                power_text = "<span foreground='#FF8800'>🔋 Kabel getrennt</span>"
+                power_text = "<span foreground='#FF8800'>🔋 Entlaedt</span>"
             self.status_values[3].set_markup(power_text)
 
             # Restzeit
             time_remaining = data.get("time_remaining")
-            battery_rate = data.get("battery_rate", 0)
             if time_remaining is None:
-                if len(data) > 0:
-                    time_text = "<span foreground='#888888'><i>Berechne...</i></span>"
-                else:
-                    time_text = "--"
+                time_text = "<span foreground='#888888'><i>Berechne...</i></span>"
             else:
                 h = int(time_remaining // 60)
                 m = int(time_remaining % 60)
