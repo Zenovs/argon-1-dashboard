@@ -75,16 +75,7 @@ def signal_handler(signum, frame):
 
 
 def read_battery_percent():
-    """Liest Batterie-Prozent als 16-bit Wert (0x0C low + 0x0D high) / 256.
-    Gibt float mit Nachkommastellen zurueck fuer praezise Ratenberechnung."""
-    try:
-        word = bus.read_word_data(BATTERY_ADDR, BATTERY_PERCENT_WORD_REG)
-        # word = low_byte(0x0C) | high_byte(0x0D) << 8
-        pct = word / 256.0
-        return round(max(0.0, min(100.0, pct)), 3)
-    except Exception:
-        pass
-    # Fallback: nur ganzzahliges Register
+    """Liest Batterie-Prozent von I2C Register 0x0D (0-100, ganzzahlig)."""
     try:
         value = bus.read_byte_data(BATTERY_ADDR, BATTERY_PERCENT_REG)
         return float(max(0, min(100, value)))

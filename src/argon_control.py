@@ -655,7 +655,7 @@ class ArgonControlWindow(Gtk.Window):
                 batt_text = "--"
             else:
                 charge_icon = "⚡" if charging else ""
-                batt_str = f"{batt:.1f}"
+                batt_str = f"{int(batt)}"
                 if batt < 20:
                     batt_text = f"<span foreground='#FF4444'><b>{batt_str}%</b></span> {charge_icon}"
                 elif batt < 50:
