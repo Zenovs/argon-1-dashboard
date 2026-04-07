@@ -39,12 +39,14 @@ try:
     print(f'FAN_SPEED={d.get(\"fan_speed\", 0)}')
     print(f'FAN_MODE={d.get(\"fan_mode\", \"auto\")}')
     tr = d.get('time_remaining')
-    if tr is None:
-        print('TIME_REMAINING=')
-    else:
+    if tr is not None:
         h = int(tr // 60)
         m = int(tr % 60)
-        print(f'TIME_REMAINING={h}:{m:02d}h')
+        print(f'TIME_H={h}')
+        print(f'TIME_M={m}')
+    else:
+        print('TIME_H=')
+        print('TIME_M=')
     print(f'BATTERY_STABLE={str(d.get(\"battery_stable\", False)).lower()}')
 except:
     print('BATTERY=-1')
@@ -53,7 +55,8 @@ except:
     print('FAN_RPM=-1')
     print('FAN_SPEED=0')
     print('FAN_MODE=auto')
-    print('TIME_REMAINING=')
+    print('TIME_H=')
+    print('TIME_M=')
     print('BATTERY_STABLE=false')
 " 2>/dev/null)
 
@@ -65,10 +68,8 @@ else
 fi
 
 # Restzeit-Anzeige aufbereiten
-if [ -n "$TIME_REMAINING" ]; then
-    TIME_TEXT=" ${TIME_REMAINING}"
-elif [ "$BATTERY_STABLE" = "true" ]; then
-    TIME_TEXT=""
+if [ -n "$TIME_H" ]; then
+    TIME_TEXT=" ${TIME_H}:$(printf '%02d' ${TIME_M})h"
 else
     TIME_TEXT=""
 fi
@@ -148,6 +149,6 @@ FAN_RPM_TEXT="${FAN_RPM}"
 [ "$FAN_RPM" -eq -1 ] 2>/dev/null && FAN_RPM_TEXT="--"
 
 TIME_TOOLTIP=""
-[ -n "$TIME_REMAINING" ] && TIME_TOOLTIP="\nRestzeit: ${TIME_REMAINING}"
+[ -n "$TIME_H" ] && TIME_TOOLTIP="\nRestzeit: ${TIME_H}:$(printf '%02d' ${TIME_M})h"
 
 echo "<tool>Argon ONE UP CM5 Dashboard\n━━━━━━━━━━━━━━━━━━━━━━━\nBatterie: ${BATT_TEXT} (${CHARGE_TEXT})${TIME_TOOLTIP}\nCPU-Temp: ${TEMP_TEXT}\nLuefter: ${FAN_RPM_TEXT} RPM (${FAN_MODE_TEXT}, ${FAN_SPEED}%)\n━━━━━━━━━━━━━━━━━━━━━━━\nKlicken fuer Steuerung</tool>"
