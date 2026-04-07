@@ -20,13 +20,13 @@ if [ "$FILE_AGE" -gt 10 ]; then
     exit 0
 fi
 
-# JSON lesen - alle Werte auf einmal
-eval $(python3 -c "
+# JSON lesen via Heredoc (kein Quoting-Problem)
+eval "$(python3 << 'PYEOF'
 import json, sys
 try:
-    with open('$STATUS_FILE') as f:
+    with open('/tmp/argon_dashboard_status') as f:
         d = json.load(f)
-    print(f'BATTERY={int(d.get(\"battery_percent\", -1))}')
+    print(f'BATTERY={int(d.get("battery_percent", -1))}')
     v = d.get('is_charging')
     if v is None:
         print('CHARGING=unknown')
@@ -34,10 +34,9 @@ try:
         print('CHARGING=true')
     else:
         print('CHARGING=false')
-    print(f'TEMP={d.get(\"cpu_temp\", -1)}')
-    print(f'FAN_RPM={d.get(\"fan_rpm\", -1)}')
-    print(f'FAN_SPEED={d.get(\"fan_speed\", 0)}')
-    print(f'FAN_MODE={d.get(\"fan_mode\", \"auto\")}')
+    print(f'TEMP={d.get("cpu_temp", -1)}')
+    print(f'FAN_RPM={d.get("fan_rpm", -1)}')
+    print(f'FAN_SPEED={d.get("fan_speed", 0)}')
     tr = d.get('time_remaining')
     if tr is not None:
         h = int(tr // 60)
@@ -47,18 +46,18 @@ try:
     else:
         print('TIME_H=')
         print('TIME_M=')
-    print(f'BATTERY_STABLE={str(d.get(\"battery_stable\", False)).lower()}')
-except:
+    print(f'BATTERY_STABLE={str(d.get("battery_stable", False)).lower()}')
+except Exception as e:
     print('BATTERY=-1')
     print('CHARGING=unknown')
     print('TEMP=-1')
     print('FAN_RPM=-1')
     print('FAN_SPEED=0')
-    print('FAN_MODE=auto')
     print('TIME_H=')
     print('TIME_M=')
     print('BATTERY_STABLE=false')
-" 2>/dev/null)
+PYEOF
+)"
 
 # Batterie-Icon und Farbe bestimmen
 if [ "$CHARGING" = "true" ]; then
@@ -79,13 +78,13 @@ if [ "$BATTERY" -eq -1 ] 2>/dev/null; then
     BATT_COLOR="#888888"
     BATT_TEXT="--"
 elif [ "$BATTERY" -lt 20 ]; then
-    BATT_COLOR="#FF4444"  # Rot
+    BATT_COLOR="#FF4444"
     BATT_TEXT="${BATTERY}%"
 elif [ "$BATTERY" -lt 50 ]; then
-    BATT_COLOR="#FF8800"  # Orange
+    BATT_COLOR="#FF8800"
     BATT_TEXT="${BATTERY}%"
 else
-    BATT_COLOR="#44CC44"  # Gruen
+    BATT_COLOR="#44CC44"
     BATT_TEXT="${BATTERY}%"
 fi
 
@@ -96,13 +95,13 @@ if [ "$TEMP_INT" -eq -1 ] 2>/dev/null; then
     TEMP_COLOR="#888888"
     TEMP_TEXT="--°C"
 elif [ "$TEMP_INT" -gt 70 ]; then
-    TEMP_COLOR="#FF4444"  # Rot
+    TEMP_COLOR="#FF4444"
     TEMP_TEXT="${TEMP}°C"
 elif [ "$TEMP_INT" -gt 60 ]; then
-    TEMP_COLOR="#FF8800"  # Orange
+    TEMP_COLOR="#FF8800"
     TEMP_TEXT="${TEMP}°C"
 else
-    TEMP_COLOR="#44CC44"  # Gruen
+    TEMP_COLOR="#44CC44"
     TEMP_TEXT="${TEMP}°C"
 fi
 
