@@ -57,6 +57,15 @@ LID_ACTIONS = [
     ("poweroff",     "Ausschalten"),
 ]
 
+def _find_backlight_path():
+    """Findet verfuegbaren Backlight-Sysfs-Pfad."""
+    import glob
+    paths = glob.glob("/sys/class/backlight/*/brightness")
+    if paths:
+        return os.path.dirname(paths[0])
+    return None
+
+
 DEFAULT_FAN_CURVE = [
     {"temp": 50, "speed": 0},
     {"temp": 55, "speed": 30},
@@ -71,7 +80,7 @@ class ArgonControlWindow(Gtk.Window):
 
     def __init__(self):
         super().__init__(title="Argon ONE UP CM5 - Steuerung")
-        self.set_default_size(420, 720)
+        self.set_default_size(420, 820)
         self.set_resizable(False)
         self.set_border_width(12)
         self.set_position(Gtk.WindowPosition.CENTER)
@@ -81,6 +90,8 @@ class ArgonControlWindow(Gtk.Window):
         self.fan_speed = 0
         self.kbd_backlight = False
         self._updating = False  # Verhindert Rueckkopplung
+        self.backlight_path = _find_backlight_path()
+        self._brightness_timer_id = None
 
         # Initialen Zustand aus Control-Datei lesen
         self._load_control_state()
@@ -260,6 +271,48 @@ class ArgonControlWindow(Gtk.Window):
         self.curve_status = Gtk.Label()
         self.curve_status.set_halign(Gtk.Align.START)
         curve_box.pack_start(self.curve_status, False, False, 0)
+
+        # ── Bildschirmhelligkeit ─────────────────────────────
+        bright_frame = Gtk.Frame(label=" ☀ Bildschirmhelligkeit ")
+        bright_frame.set_margin_top(5)
+        main_box.pack_start(bright_frame, False, False, 0)
+
+        bright_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=6)
+        bright_box.set_margin_top(8)
+        bright_box.set_margin_bottom(8)
+        bright_box.set_margin_start(10)
+        bright_box.set_margin_end(10)
+        bright_frame.add(bright_box)
+
+        if self.backlight_path:
+            bright_row = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
+            bright_lbl = Gtk.Label(label="Helligkeit:")
+            bright_row.pack_start(bright_lbl, False, False, 0)
+
+            init_brightness = self._read_brightness_pct()
+            self.brightness_adj = Gtk.Adjustment(
+                value=max(0, init_brightness), lower=5, upper=100,
+                step_increment=5, page_increment=10
+            )
+            self.brightness_slider = Gtk.Scale(
+                orientation=Gtk.Orientation.HORIZONTAL,
+                adjustment=self.brightness_adj
+            )
+            self.brightness_slider.set_digits(0)
+            self.brightness_slider.set_value_pos(Gtk.PositionType.RIGHT)
+            self.brightness_slider.set_hexpand(True)
+            self.brightness_slider.add_mark(25,  Gtk.PositionType.BOTTOM, "25%")
+            self.brightness_slider.add_mark(50,  Gtk.PositionType.BOTTOM, "50%")
+            self.brightness_slider.add_mark(75,  Gtk.PositionType.BOTTOM, "75%")
+            self.brightness_slider.add_mark(100, Gtk.PositionType.BOTTOM, "100%")
+            self.brightness_slider.connect("value-changed", self.on_brightness_changed)
+            bright_row.pack_start(self.brightness_slider, True, True, 0)
+            bright_box.pack_start(bright_row, False, False, 0)
+        else:
+            no_bl = Gtk.Label()
+            no_bl.set_markup("<span foreground='#888888'><i>Kein Backlight-Geraet gefunden.</i></span>")
+            no_bl.set_halign(Gtk.Align.START)
+            bright_box.pack_start(no_bl, False, False, 0)
 
         # ── Deckel-Aktion ────────────────────────────────────
         lid_frame = Gtk.Frame(label=" 🖥 Deckel zuklappen ")
@@ -470,6 +523,48 @@ class ArgonControlWindow(Gtk.Window):
             "<span foreground='#FF8800'>🔄 Standard wiederhergestellt. Klicke 'Speichern' zum Uebernehmen.</span>"
         )
 
+    def _read_brightness_pct(self):
+        """Liest aktuelle Helligkeit als Prozent (0-100)."""
+        try:
+            with open(f"{self.backlight_path}/brightness") as f:
+                cur = int(f.read().strip())
+            with open(f"{self.backlight_path}/max_brightness") as f:
+                max_b = int(f.read().strip())
+            return round(cur * 100 / max_b) if max_b > 0 else 0
+        except Exception:
+            return -1
+
+    def on_brightness_changed(self, widget):
+        """Debounced Handler fuer Helligkeits-Slider."""
+        if self._updating:
+            return
+        if self._brightness_timer_id is not None:
+            GLib.source_remove(self._brightness_timer_id)
+        self._brightness_timer_id = GLib.timeout_add(150, self._apply_brightness)
+
+    def _apply_brightness(self):
+        """Schreibt Helligkeitswert nach sysfs."""
+        self._brightness_timer_id = None
+        if not self.backlight_path:
+            return False
+        pct = int(self.brightness_slider.get_value())
+        try:
+            with open(f"{self.backlight_path}/max_brightness") as f:
+                max_b = int(f.read().strip())
+            value = max(1, round(pct * max_b / 100))
+            try:
+                with open(f"{self.backlight_path}/brightness", "w") as f:
+                    f.write(str(value))
+            except PermissionError:
+                subprocess.run(
+                    ["pkexec", "bash", "-c",
+                     f"echo {value} > {self.backlight_path}/brightness"],
+                    capture_output=True, timeout=10
+                )
+        except Exception as e:
+            print(f"Helligkeit konnte nicht gesetzt werden: {e}", file=sys.stderr)
+        return False
+
     def _read_lid_action(self):
         """Liest aktuelle Deckel-Aktion aus logind-Konfiguration."""
         for path in [LID_CONFIG_PATH, LOGIND_CONF_PATH]:
@@ -631,6 +726,9 @@ class ArgonControlWindow(Gtk.Window):
             charging = data.get("is_charging")
             if batt == -1:
                 batt_text = "--"
+            elif batt == 0 and charging:
+                # 0% + laedt = Akku-Controller liefert keine validen Daten
+                batt_text = "<span foreground='#888888'>⚠ Keine Akkudaten</span>"
             else:
                 charge_icon = "⚡" if charging else ""
                 if batt < 20:
