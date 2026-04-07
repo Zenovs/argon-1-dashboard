@@ -131,24 +131,4 @@ echo "<txt>${BATT_ICON}<span foreground='${BATT_COLOR}'>${BATT_TEXT}${TIME_TEXT}
 echo "<txtclick>python3 /usr/local/bin/argon_control.py &</txtclick>"
 
 # Tooltip mit Details
-if [ "$CHARGING" = "true" ]; then
-    CHARGE_TEXT="Laedt"
-elif [ "$CHARGING" = "false" ]; then
-    CHARGE_TEXT="Entlaedt"
-else
-    CHARGE_TEXT="Unbekannt"
-fi
-
-if [ "$FAN_MODE" = "auto" ]; then
-    FAN_MODE_TEXT="Auto"
-else
-    FAN_MODE_TEXT="Manuell"
-fi
-
-FAN_RPM_TEXT="${FAN_RPM}"
-[ "$FAN_RPM" -eq -1 ] 2>/dev/null && FAN_RPM_TEXT="--"
-
-TIME_TOOLTIP=""
-[ -n "$TIME_H" ] && TIME_TOOLTIP="\nRestzeit: ${TIME_H}:$(printf '%02d' ${TIME_M})h"
-
-echo "<tool>Argon ONE UP CM5 Dashboard\n━━━━━━━━━━━━━━━━━━━━━━━\nBatterie: ${BATT_TEXT} (${CHARGE_TEXT})${TIME_TOOLTIP}\nCPU-Temp: ${TEMP_TEXT}\nLuefter: ${FAN_RPM_TEXT} RPM (${FAN_MODE_TEXT}, ${FAN_SPEED}%)\n━━━━━━━━━━━━━━━━━━━━━━━\nKlicken fuer Steuerung</tool>"
+echo "<tool>Klicken fuer mehr Infos und Steuerung</tool>"

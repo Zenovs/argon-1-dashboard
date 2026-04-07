@@ -310,10 +310,19 @@ class ArgonControlWindow(Gtk.Window):
         lid_box.pack_start(self.lock_status, False, False, 0)
 
         # ── Schliessen-Button ────────────────────────────────
+        # ── Buttons unten ────────────────────────────────────
+        btn_bottom = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
+        btn_bottom.set_margin_top(10)
+
+        update_btn = Gtk.Button(label="🔄 Update")
+        update_btn.connect("clicked", self.on_update_clicked)
+        btn_bottom.pack_start(update_btn, True, True, 0)
+
         close_btn = Gtk.Button(label="Schliessen")
-        close_btn.set_margin_top(10)
         close_btn.connect("clicked", lambda w: self.destroy())
-        main_box.pack_end(close_btn, False, False, 0)
+        btn_bottom.pack_start(close_btn, True, True, 0)
+
+        main_box.pack_end(btn_bottom, False, False, 0)
 
         # Timer fuer Status-Updates (1 Sekunde)
         GLib.timeout_add_seconds(1, self.update_status)
@@ -469,6 +478,19 @@ class ArgonControlWindow(Gtk.Window):
         self.curve_status.set_markup(
             "<span foreground='#FF8800'>🔄 Standard wiederhergestellt. Klicke 'Speichern' zum Uebernehmen.</span>"
         )
+
+    def on_update_clicked(self, widget):
+        """Oeffnet Terminal und fuehrt Update-Skript aus."""
+        update_cmd = (
+            "curl -fsSL https://raw.githubusercontent.com/Zenovs/argon-1-dashboard/main/update.sh | sudo bash"
+            "; echo ''; echo 'Druecke ENTER zum Schliessen...'; read"
+        )
+        for terminal in ["xfce4-terminal", "x-terminal-emulator", "xterm"]:
+            try:
+                subprocess.Popen([terminal, "-e", f"bash -c '{update_cmd}'"])
+                return
+            except FileNotFoundError:
+                continue
 
     def _read_lid_action(self):
         """Liest aktuelle Deckel-Aktion aus logind-Konfiguration."""
