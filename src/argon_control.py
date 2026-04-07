@@ -66,6 +66,37 @@ def _find_backlight_path():
     return None
 
 
+def _get_xrandr_output():
+    """Gibt den ersten verbundenen xrandr-Output zurueck."""
+    try:
+        result = subprocess.run(
+            ["xrandr"], capture_output=True, text=True, timeout=3
+        )
+        for line in result.stdout.splitlines():
+            if " connected" in line:
+                return line.split()[0]
+    except Exception:
+        pass
+    return None
+
+
+def _get_xrandr_brightness(output):
+    """Liest aktuelle xrandr-Helligkeit (0.0-1.0) eines Outputs."""
+    try:
+        result = subprocess.run(
+            ["xrandr", "--verbose"], capture_output=True, text=True, timeout=3
+        )
+        found = False
+        for line in result.stdout.splitlines():
+            if output in line and " connected" in line:
+                found = True
+            if found and line.strip().startswith("Brightness:"):
+                return float(line.strip().split(":")[1].strip())
+    except Exception:
+        pass
+    return 1.0
+
+
 DEFAULT_FAN_CURVE = [
     {"temp": 50, "speed": 0},
     {"temp": 55, "speed": 30},
@@ -91,6 +122,7 @@ class ArgonControlWindow(Gtk.Window):
         self.kbd_backlight = False
         self._updating = False  # Verhindert Rueckkopplung
         self.backlight_path = _find_backlight_path()
+        self.xrandr_output = None if self.backlight_path else _get_xrandr_output()
         self._brightness_timer_id = None
 
         # Initialen Zustand aus Control-Datei lesen
@@ -284,14 +316,14 @@ class ArgonControlWindow(Gtk.Window):
         bright_box.set_margin_end(10)
         bright_frame.add(bright_box)
 
-        if self.backlight_path:
+        if self.backlight_path or self.xrandr_output:
             bright_row = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
             bright_lbl = Gtk.Label(label="Helligkeit:")
             bright_row.pack_start(bright_lbl, False, False, 0)
 
             init_brightness = self._read_brightness_pct()
             self.brightness_adj = Gtk.Adjustment(
-                value=max(0, init_brightness), lower=5, upper=100,
+                value=max(10, init_brightness), lower=10, upper=100,
                 step_increment=5, page_increment=10
             )
             self.brightness_slider = Gtk.Scale(
@@ -308,9 +340,14 @@ class ArgonControlWindow(Gtk.Window):
             self.brightness_slider.connect("value-changed", self.on_brightness_changed)
             bright_row.pack_start(self.brightness_slider, True, True, 0)
             bright_box.pack_start(bright_row, False, False, 0)
+            if self.xrandr_output:
+                hint = Gtk.Label()
+                hint.set_markup(f"<small><i>via xrandr ({self.xrandr_output})</i></small>")
+                hint.set_halign(Gtk.Align.START)
+                bright_box.pack_start(hint, False, False, 0)
         else:
             no_bl = Gtk.Label()
-            no_bl.set_markup("<span foreground='#888888'><i>Kein Backlight-Geraet gefunden.</i></span>")
+            no_bl.set_markup("<span foreground='#888888'><i>Kein Display-Geraet gefunden.</i></span>")
             no_bl.set_halign(Gtk.Align.START)
             bright_box.pack_start(no_bl, False, False, 0)
 
@@ -525,14 +562,19 @@ class ArgonControlWindow(Gtk.Window):
 
     def _read_brightness_pct(self):
         """Liest aktuelle Helligkeit als Prozent (0-100)."""
-        try:
-            with open(f"{self.backlight_path}/brightness") as f:
-                cur = int(f.read().strip())
-            with open(f"{self.backlight_path}/max_brightness") as f:
-                max_b = int(f.read().strip())
-            return round(cur * 100 / max_b) if max_b > 0 else 0
-        except Exception:
-            return -1
+        if self.backlight_path:
+            try:
+                with open(f"{self.backlight_path}/brightness") as f:
+                    cur = int(f.read().strip())
+                with open(f"{self.backlight_path}/max_brightness") as f:
+                    max_b = int(f.read().strip())
+                return round(cur * 100 / max_b) if max_b > 0 else 0
+            except Exception:
+                return 100
+        elif self.xrandr_output:
+            val = _get_xrandr_brightness(self.xrandr_output)
+            return round(val * 100)
+        return 100
 
     def on_brightness_changed(self, widget):
         """Debounced Handler fuer Helligkeits-Slider."""
@@ -543,23 +585,28 @@ class ArgonControlWindow(Gtk.Window):
         self._brightness_timer_id = GLib.timeout_add(150, self._apply_brightness)
 
     def _apply_brightness(self):
-        """Schreibt Helligkeitswert nach sysfs."""
+        """Schreibt Helligkeitswert (sysfs oder xrandr)."""
         self._brightness_timer_id = None
-        if not self.backlight_path:
-            return False
         pct = int(self.brightness_slider.get_value())
         try:
-            with open(f"{self.backlight_path}/max_brightness") as f:
-                max_b = int(f.read().strip())
-            value = max(1, round(pct * max_b / 100))
-            try:
-                with open(f"{self.backlight_path}/brightness", "w") as f:
-                    f.write(str(value))
-            except PermissionError:
+            if self.backlight_path:
+                with open(f"{self.backlight_path}/max_brightness") as f:
+                    max_b = int(f.read().strip())
+                value = max(1, round(pct * max_b / 100))
+                try:
+                    with open(f"{self.backlight_path}/brightness", "w") as f:
+                        f.write(str(value))
+                except PermissionError:
+                    subprocess.run(
+                        ["pkexec", "bash", "-c",
+                         f"echo {value} > {self.backlight_path}/brightness"],
+                        capture_output=True, timeout=10
+                    )
+            elif self.xrandr_output:
+                xval = round(pct / 100, 2)
                 subprocess.run(
-                    ["pkexec", "bash", "-c",
-                     f"echo {value} > {self.backlight_path}/brightness"],
-                    capture_output=True, timeout=10
+                    ["xrandr", "--output", self.xrandr_output, "--brightness", str(xval)],
+                    capture_output=True, timeout=5
                 )
         except Exception as e:
             print(f"Helligkeit konnte nicht gesetzt werden: {e}", file=sys.stderr)
@@ -726,9 +773,6 @@ class ArgonControlWindow(Gtk.Window):
             charging = data.get("is_charging")
             if batt == -1:
                 batt_text = "--"
-            elif batt == 0 and charging:
-                # 0% + laedt = Akku-Controller liefert keine validen Daten
-                batt_text = "<span foreground='#888888'>⚠ Keine Akkudaten</span>"
             else:
                 charge_icon = "⚡" if charging else ""
                 if batt < 20:
