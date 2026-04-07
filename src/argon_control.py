@@ -655,12 +655,13 @@ class ArgonControlWindow(Gtk.Window):
                 batt_text = "--"
             else:
                 charge_icon = "⚡" if charging else ""
+                batt_str = f"{batt:.1f}"
                 if batt < 20:
-                    batt_text = f"<span foreground='#FF4444'><b>{batt}%</b></span> {charge_icon}"
+                    batt_text = f"<span foreground='#FF4444'><b>{batt_str}%</b></span> {charge_icon}"
                 elif batt < 50:
-                    batt_text = f"<span foreground='#FF8800'><b>{batt}%</b></span> {charge_icon}"
+                    batt_text = f"<span foreground='#FF8800'><b>{batt_str}%</b></span> {charge_icon}"
                 else:
-                    batt_text = f"<span foreground='#44CC44'><b>{batt}%</b></span> {charge_icon}"
+                    batt_text = f"<span foreground='#44CC44'><b>{batt_str}%</b></span> {charge_icon}"
                 if charging:
                     batt_text += " (Laedt)"
             self.status_values[0].set_markup(batt_text)

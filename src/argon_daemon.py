@@ -28,6 +28,7 @@ except ImportError:
 I2C_BUS = 1
 BATTERY_ADDR = 0x64
 BATTERY_PERCENT_REG = 0x0D
+BATTERY_PERCENT_WORD_REG = 0x0C  # 16-bit little-endian: 0x0C=low, 0x0D=high → /256 = %
 BATTERY_STATUS_REG = 0x00
 CPU_TEMP_PATH = "/sys/class/thermal/thermal_zone0/temp"
 STATUS_FILE = "/tmp/argon_dashboard_status"
@@ -74,13 +75,22 @@ def signal_handler(signum, frame):
 
 
 def read_battery_percent():
-    """Liest Batterie-Prozent von I2C Register 0x04."""
+    """Liest Batterie-Prozent als 16-bit Wert (0x0C low + 0x0D high) / 256.
+    Gibt float mit Nachkommastellen zurueck fuer praezise Ratenberechnung."""
+    try:
+        word = bus.read_word_data(BATTERY_ADDR, BATTERY_PERCENT_WORD_REG)
+        # word = low_byte(0x0C) | high_byte(0x0D) << 8
+        pct = word / 256.0
+        return round(max(0.0, min(100.0, pct)), 3)
+    except Exception:
+        pass
+    # Fallback: nur ganzzahliges Register
     try:
         value = bus.read_byte_data(BATTERY_ADDR, BATTERY_PERCENT_REG)
-        return max(0, min(100, value))
+        return float(max(0, min(100, value)))
     except Exception as e:
         print(f"WARNUNG: Batterie-Prozent konnte nicht gelesen werden: {e}", file=sys.stderr)
-        return -1
+        return -1.0
 
 
 def read_charging_status():

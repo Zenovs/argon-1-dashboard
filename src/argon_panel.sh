@@ -26,7 +26,9 @@ import json, sys
 try:
     with open('$STATUS_FILE') as f:
         d = json.load(f)
-    print(f'BATTERY={d.get(\"battery_percent\", -1)}')
+    bp = d.get('battery_percent', -1)
+    print(f'BATTERY={bp}')
+    print(f'BATTERY_INT={int(bp) if bp >= 0 else -1}')
     v = d.get('is_charging')
     if v is None:
         print('CHARGING=unknown')
@@ -50,6 +52,7 @@ try:
     print(f'BATTERY_STABLE={str(d.get(\"battery_stable\", False)).lower()}')
 except:
     print('BATTERY=-1')
+    print('BATTERY_INT=-1')
     print('CHARGING=unknown')
     print('TEMP=-1')
     print('FAN_RPM=-1')
@@ -75,18 +78,19 @@ else
 fi
 
 # Batterie-Farbcodierung
-if [ "$BATTERY" -eq -1 ] 2>/dev/null; then
+BATT_DISPLAY=$(printf "%.1f" "$BATTERY" 2>/dev/null || echo "--")
+if [ "$BATTERY_INT" -eq -1 ] 2>/dev/null; then
     BATT_COLOR="#888888"
     BATT_TEXT="--"
-elif [ "$BATTERY" -lt 20 ]; then
+elif [ "$BATTERY_INT" -lt 20 ]; then
     BATT_COLOR="#FF4444"  # Rot
-    BATT_TEXT="${BATTERY}%"
-elif [ "$BATTERY" -lt 50 ]; then
+    BATT_TEXT="${BATT_DISPLAY}%"
+elif [ "$BATTERY_INT" -lt 50 ]; then
     BATT_COLOR="#FF8800"  # Orange
-    BATT_TEXT="${BATTERY}%"
+    BATT_TEXT="${BATT_DISPLAY}%"
 else
     BATT_COLOR="#44CC44"  # Gruen
-    BATT_TEXT="${BATTERY}%"
+    BATT_TEXT="${BATT_DISPLAY}%"
 fi
 
 # Temperatur-Farbcodierung
