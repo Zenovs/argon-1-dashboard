@@ -365,14 +365,6 @@ def main():
 
             battery_rate, time_remaining, battery_stable = estimate_battery_time(battery_percent)
 
-            # Ladestatus aus Rate ableiten (I2C-Register aendert sich nicht beim Laden)
-            if battery_rate > 0.5:
-                is_charging = True
-            elif battery_rate < -0.5:
-                is_charging = False
-            else:
-                is_charging = None  # Unbekannt oder stabil
-
             # Lueftersteuerung
             if current_fan_mode == "auto":
                 pwm_value, fan_percent = calculate_auto_fan(cpu_temp)
@@ -385,10 +377,8 @@ def main():
 
             status = {
                 "battery_percent": battery_percent,
-                "is_charging": is_charging,
                 "battery_rate": battery_rate,
                 "time_remaining": time_remaining,
-                "battery_stable": battery_stable,
                 "cpu_temp": cpu_temp,
                 "fan_rpm": fan_rpm,
                 "fan_speed": current_fan_speed,

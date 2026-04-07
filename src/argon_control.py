@@ -113,7 +113,7 @@ class ArgonControlWindow(Gtk.Window):
         status_frame.add(status_grid)
 
         # Status-Labels
-        labels = ["🔋 Batterie:", "🌡 CPU-Temp:", "🌀 Luefter:", "🔌 Netzstrom:", "⏱ Restzeit:"]
+        labels = ["🔋 Batterie:", "🌡 CPU-Temp:", "🌀 Luefter:", "⏱ Restzeit:"]
         self.status_values = []
         for i, text in enumerate(labels):
             lbl = Gtk.Label(label=text)
@@ -689,29 +689,20 @@ class ArgonControlWindow(Gtk.Window):
                 fan_text = f"<b>{fan_rpm} RPM</b> ({fan_speed}%, {mode_text})"
             self.status_values[2].set_markup(fan_text)
 
-            # Netzstrom / Ladestatus (aus Rate abgeleitet)
-            charging = data.get("is_charging")
-            if charging is True:
-                power_text = "<span foreground='#44CC44'><b>⚡ Laedt</b></span>"
-            elif charging is False:
-                power_text = "<span foreground='#FF8800'>🔋 Entlaedt</span>"
-            else:
-                power_text = "<span foreground='#888888'>Unbekannt</span>"
-            self.status_values[3].set_markup(power_text)
-
             # Restzeit
+            battery_rate = data.get("battery_rate", 0.0)
             time_remaining = data.get("time_remaining")
             if time_remaining is None:
                 time_text = "<span foreground='#888888'>–</span>"
             else:
                 h = int(time_remaining // 60)
                 m = int(time_remaining % 60)
-                if charging:
+                if battery_rate > 0:
                     time_text = f"<span foreground='#44CC44'>Voll in <b>{h}:{m:02d} h</b></span>"
                 else:
                     color = "#FF4444" if time_remaining < 30 else "#FF8800" if time_remaining < 60 else "#44CC44"
                     time_text = f"<span foreground='{color}'>Leer in <b>{h}:{m:02d} h</b></span>"
-            self.status_values[4].set_markup(time_text)
+            self.status_values[3].set_markup(time_text)
 
             # UI-Zustand synchronisieren (ohne Rueckkopplung)
             self._updating = True
