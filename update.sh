@@ -79,8 +79,10 @@ fetch_file "src/argon_control.py" /usr/local/bin/argon_control.py 755
 echo "  → argon_control.py ✓"
 
 fetch_file "src/argon-dashboard.service" /etc/systemd/system/argon-dashboard.service 644
+fetch_file "src/argon_hotkeys.py" /usr/local/bin/argon_hotkeys.py 755
 systemctl daemon-reload
 echo "  → argon-dashboard.service ✓"
+echo "  → argon_hotkeys.py ✓"
 
 # Luefter-Konfiguration (nur erstellen falls nicht vorhanden)
 echo -e "${YELLOW}[4/5] Pruefe Luefter-Konfiguration...${NC}"
@@ -91,6 +93,21 @@ if [ ! -f /etc/argon/fan_config.json ]; then
     echo "  → /etc/argon/fan_config.json erstellt ✓"
 else
     echo "  → /etc/argon/fan_config.json bereits vorhanden (beibehalten) ✓"
+fi
+
+# Hotkey-Service installieren (User-Service fuer aktuellen Benutzer)
+REAL_USER="${SUDO_USER:-$(logname 2>/dev/null || echo '')}"
+if [ -n "$REAL_USER" ]; then
+    USER_SERVICE_DIR="/home/${REAL_USER}/.config/systemd/user"
+    mkdir -p "$USER_SERVICE_DIR"
+    fetch_file "src/argonhotkeys.service" "${USER_SERVICE_DIR}/argonhotkeys.service" 644
+    chown -R "${REAL_USER}:${REAL_USER}" "${USER_SERVICE_DIR}"
+    # Evdev installieren falls fehlend
+    pip3 install evdev --quiet 2>/dev/null || true
+    sudo -u "$REAL_USER" systemctl --user daemon-reload 2>/dev/null || true
+    sudo -u "$REAL_USER" systemctl --user enable argonhotkeys.service 2>/dev/null || true
+    sudo -u "$REAL_USER" systemctl --user restart argonhotkeys.service 2>/dev/null || true
+    echo "  → argonhotkeys.service (Fn+F2/F3) ✓"
 fi
 
 # Daemon neu starten

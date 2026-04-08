@@ -126,6 +126,36 @@ class ArgonControlWindow(Gtk.Window):
             status_grid.attach(val, 1, i, 1, 1)
             self.status_values.append(val)
 
+        # ── Helligkeit ───────────────────────────────────────
+        bright_frame = Gtk.Frame(label=" ☀ Bildschirmhelligkeit ")
+        bright_frame.set_margin_top(5)
+        main_box.pack_start(bright_frame, False, False, 0)
+
+        bright_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
+        bright_box.set_margin_top(8)
+        bright_box.set_margin_bottom(8)
+        bright_box.set_margin_start(10)
+        bright_box.set_margin_end(10)
+        bright_frame.add(bright_box)
+
+        bright_label = Gtk.Label(label="Helligkeit:")
+        bright_box.pack_start(bright_label, False, False, 0)
+
+        self.bright_adjustment = Gtk.Adjustment(
+            value=80, lower=10, upper=100, step_increment=5, page_increment=10
+        )
+        self.bright_slider = Gtk.Scale(
+            orientation=Gtk.Orientation.HORIZONTAL, adjustment=self.bright_adjustment
+        )
+        self.bright_slider.set_digits(0)
+        self.bright_slider.set_value_pos(Gtk.PositionType.RIGHT)
+        self.bright_slider.set_hexpand(True)
+        self.bright_slider.add_mark(10, Gtk.PositionType.BOTTOM, "10%")
+        self.bright_slider.add_mark(50, Gtk.PositionType.BOTTOM, "50%")
+        self.bright_slider.add_mark(100, Gtk.PositionType.BOTTOM, "100%")
+        self.bright_slider.connect("value-changed", self.on_brightness_changed)
+        bright_box.pack_start(self.bright_slider, True, True, 0)
+
         # ── Lueftersteuerung ─────────────────────────────────
         fan_frame = Gtk.Frame(label=" 🌀 Lueftersteuerung ")
         fan_frame.set_margin_top(5)
@@ -383,6 +413,12 @@ class ArgonControlWindow(Gtk.Window):
             self.fan_slider.set_sensitive(True)
         self._write_control()
 
+    def on_brightness_changed(self, widget):
+        """Handler fuer Helligkeits-Slider-Aenderung."""
+        if self._updating:
+            return
+        self._write_control()
+
     def on_fan_speed_changed(self, widget):
         """Handler fuer Luefter-Slider-Aenderung."""
         if self._updating:
@@ -627,7 +663,8 @@ class ArgonControlWindow(Gtk.Window):
         data = {
             "fan_mode": self.fan_mode,
             "fan_speed": self.fan_speed,
-            "kbd_backlight": self.kbd_backlight
+            "kbd_backlight": self.kbd_backlight,
+            "brightness": int(self.bright_adjustment.get_value())
         }
         try:
             tmp_file = CONTROL_FILE + ".tmp"
@@ -731,6 +768,13 @@ class ArgonControlWindow(Gtk.Window):
             if kbd != self.kbd_switch.get_active():
                 self.kbd_switch.set_active(kbd)
                 self._update_kbd_label()
+
+            # Helligkeit synchronisieren
+            brightness = data.get("brightness")
+            if brightness is not None:
+                if int(self.bright_adjustment.get_value()) != int(brightness):
+                    self.bright_adjustment.set_value(brightness)
+
             self._updating = False
 
         except json.JSONDecodeError:

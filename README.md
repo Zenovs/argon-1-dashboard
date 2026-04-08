@@ -13,26 +13,23 @@
 ╚═══════════════════════════════════════════════════════════════╝
 ```
 
-Ein leichtgewichtiges Dashboard fuer den **Argon ONE UP CM5 Raspberry Pi Laptop** mit Kali Linux und XFCE Desktop.
+Ein leichtgewichtiges Dashboard fuer den **Argon ONE UP CM5 Raspberry Pi Laptop** unter Kali Linux / XFCE.
 
-Zeigt **Batterie-Status**, **CPU-Temperatur** und **Luefter-Status** direkt in der XFCE-Taskleiste an. Bietet Steuerung von **Luefter** und **Tastaturbeleuchtung** ueber ein GTK3-Control-Panel.
-
-![Dashboard Preview](docs/screenshot.png)
+Zeigt **Batterie**, **CPU-Temperatur** und **Luefter** in der XFCE-Taskleiste. Steuerung von **Luefter**, **Bildschirmhelligkeit** und **Tastaturbeleuchtung** im GTK3-Control-Panel.
 
 ---
 
 ## ✨ Features
 
-- 🔋 **Batterie-Anzeige** mit Prozent und Lade-Status
+- 🔋 **Batterie** mit Prozent, Lade-/Entladestatus und Restzeit
 - 🌡️ **CPU-Temperatur** mit Farbcodierung
-- 🌀 **Luefter-Anzeige** mit RPM und Geschwindigkeit
-- 🔧 **Lueftersteuerung** (Auto/Manuell) ueber GTK3-Panel
-- 💡 **Tastaturbeleuchtung** Ein/Aus-Steuerung
-- 🎨 **Farbcodierung**: Gruen/Orange/Rot je nach Status
-- 🔌 **Lade-Erkennung**: Unterschiedliche Icons fuer Laden/Entladen
+- 🌀 **Luefter** mit RPM und Geschwindigkeit
+- ☀️ **Bildschirmhelligkeit** per Slider oder **Fn+F2/F3** Tasten
+- 🔧 **Lueftersteuerung** (Auto/Manuell) mit konfigurierbarer Kurve
+- 💡 **Tastaturbeleuchtung** Ein/Aus
+- 🔌 **Lade-Erkennung** direkt vom CW2217 Chip (Register 0x0E)
 - ⚡ **Leichtgewichtig**: Minimaler Ressourcenverbrauch
 - 🚀 **Auto-Start**: Startet automatisch beim Booten
-- 📊 **Tooltip**: Detaillierte Infos beim Hovern
 
 ### Farbcodierung
 
@@ -153,38 +150,48 @@ Entfernt:
 ```
 argon_daemon.py (Systemd-Service, root)
     │
-    ├── Liest I2C Bus 1, Adresse 0x64
-    │   ├── Register 0x04 → Batterie-Prozent
-    │   └── Register 0x0E → Lade-Status
+    ├── I2C Bus 1, Adresse 0x64 (CW2217 Batterie-Chip)
+    │   ├── Init: Batterie-Profil laden (76 Bytes, Register 0x10-0x59)
+    │   ├── Register 0x04 → Batterie-Prozent (0-100%)
+    │   └── Register 0x0E → Lade-Status (< 0x80 = laedt)
     │
-    ├── Liest /sys/class/thermal/thermal_zone0/temp → CPU-Temp
+    ├── I2C Bus 14, Adresse 0x37 (DDC/CI Display)
+    │   └── VCP 0x10 → Bildschirmhelligkeit (10-100%)
     │
-    ├── Liest /sys/class/hwmon/hwmon3/fan1_input → Luefter-RPM
-    │
-    ├── Schreibt /sys/class/hwmon/hwmon3/pwm1 → Luefter-PWM
-    │
-    ├── Schreibt /sys/class/leds/default-on/brightness → Tastatur-LED
-    │
-    ├── Liest /etc/argon/fan_config.json → Luefter-Kurve (auto-reload)
-    │
-    ├── Liest /tmp/argon_dashboard_control ← Steuerbefehle
-    │
-    └── Schreibt /tmp/argon_dashboard_status → JSON-Status
-                              │
-                    argon_panel.sh (Genmon-Plugin)
-                    ├── Zeigt in XFCE-Taskleiste an
-                    └── Klick → argon_control.py (GTK3)
-                                    │
-                                    ├── Schreibt /tmp/argon_dashboard_control
-                                    └── Schreibt /etc/argon/fan_config.json (via pkexec)
+    ├── /sys/class/thermal/thermal_zone0/temp → CPU-Temp
+    ├── /sys/class/hwmon/hwmon3/fan1_input → Luefter-RPM
+    ├── /sys/class/hwmon/hwmon3/pwm1 → Luefter-PWM
+    ├── /sys/class/leds/default-on/brightness → Tastatur-LED
+    ├── /tmp/argon_dashboard_control ← Steuerbefehle
+    └── /tmp/argon_dashboard_status → JSON-Status
+                          │
+                argon_panel.sh (Genmon-Plugin, XFCE Taskleiste)
+                └── Klick → argon_control.py (GTK3 Control-Panel)
+                                │
+                                ├── Helligkeit-Slider
+                                ├── Luefter Auto/Manuell + Kurve
+                                └── Tastaturbeleuchtung
+
+argon_hotkeys.py (User-Systemd-Service)
+    └── evdev → KEY_BRIGHTNESSUP/DOWN (Fn+F3/F2) → Helligkeit
 ```
 
 ### I2C-Kommunikation
 
+**Batterie-Chip CW2217 (Bus 1, Adresse 0x64):**
+
 | Register | Beschreibung | Werte |
 |----------|-------------|-------|
-| `0x04` | Batterie-Prozent | 0-100 |
+| `0x04` | Batterie-Prozent | 0-100% |
 | `0x0E` | Lade-Status | < 0x80 = Laedt, ≥ 0x80 = Entlaedt |
+| `0x08` | Modus-Register | 0x30=Restart, 0xF0=Sleep, 0x00=Aktiv |
+| `0x10-0x59` | Batterie-Profil | 76 Bytes (Argon ONE UP spezifisch) |
+
+**Display DDC/CI (Bus 14, Adresse 0x37):**
+
+| VCP Code | Beschreibung | Werte |
+|----------|-------------|-------|
+| `0x10` | Bildschirmhelligkeit | 10-100% |
 
 ### Hardware-Schnittstellen
 
@@ -202,11 +209,14 @@ argon_daemon.py (Systemd-Service, root)
 {
     "battery_percent": 85,
     "is_charging": true,
+    "battery_rate": -2.1,
+    "time_remaining": 210,
     "cpu_temp": 42.5,
     "fan_rpm": 1200,
     "fan_speed": 30,
     "fan_mode": "auto",
     "kbd_backlight": true,
+    "brightness": 80,
     "timestamp": 1711929600.0
 }
 ```
@@ -217,7 +227,8 @@ argon_daemon.py (Systemd-Service, root)
 {
     "fan_mode": "auto",
     "fan_speed": 50,
-    "kbd_backlight": true
+    "kbd_backlight": true,
+    "brightness": 80
 }
 ```
 
@@ -231,12 +242,12 @@ argon_daemon.py (Systemd-Service, root)
 - **Hover** zeigt detaillierte Infos als Tooltip
 
 ### Control-Panel (GTK3)
+- **☀ Bildschirmhelligkeit**: Slider 10-100% (sofort wirksam)
+- **Fn+F2 / Fn+F3**: Helligkeit -/+ direkt ueber Tastatur
 - **Luefter Auto-Modus**: Temperaturbasierte automatische Steuerung
 - **Luefter Manuell**: Slider fuer 0-100% manuelle Geschwindigkeit
 - **Luefter-Kurve konfigurieren**: 5 Temperatur-/Geschwindigkeitspunkte anpassbar
 - **Tastaturbeleuchtung**: Ein/Aus-Schalter
-- Status wird jede Sekunde aktualisiert
-- Luefter-Kurve wird sofort vom Daemon uebernommen (kein Neustart noetig)
 
 ---
 
@@ -326,11 +337,13 @@ argon-dashboard/
 ├── update.sh              # Update-Skript
 ├── uninstall.sh           # Deinstallationsskript
 ├── src/
-│   ├── argon_daemon.py    # Python-Daemon (I2C + Temp + Luefter + LED)
-│   ├── argon_panel.sh     # XFCE Genmon-Skript
-│   ├── argon_control.py   # GTK3 Control-Panel (inkl. Luefter-Kurve)
-│   ├── argon-dashboard.service  # Systemd-Service
-│   └── fan_config.json    # Standard Luefter-Kurve
+│   ├── argon_daemon.py        # Daemon (I2C Batterie + DDC Helligkeit + Luefter)
+│   ├── argon_panel.sh         # XFCE Genmon-Taskleisten-Applet
+│   ├── argon_control.py       # GTK3 Control-Panel
+│   ├── argon_hotkeys.py       # Fn+F2/F3 Helligkeits-Hotkeys (User-Service)
+│   ├── argon-dashboard.service  # Systemd Root-Service
+│   ├── argonhotkeys.service   # Systemd User-Service (Hotkeys)
+│   └── fan_config.json        # Standard Luefter-Kurve
 └── .gitignore
 ```
 

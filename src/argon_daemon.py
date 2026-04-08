@@ -55,12 +55,18 @@ DEFAULT_FAN_CURVE = [
     {"temp": 70, "speed": 100},
 ]
 
+# DDC/CI Helligkeit (I2C Bus 14, Adresse 0x37)
+DDC_BUS = 14
+DDC_ADDR = 0x37
+
 # Globale Variablen
 running = True
 bus = None
+ddc_bus = None
 current_fan_mode = "auto"
 current_fan_speed = 0  # Prozent (0-100)
 current_kbd_backlight = False
+current_brightness = 80  # Prozent (10-100)
 fan_curve = list(DEFAULT_FAN_CURVE)  # Aktive Luefter-Kurve
 fan_config_mtime = 0  # Letzte Aenderungszeit der Konfigurationsdatei
 battery_history = []  # (timestamp, percent) fuer Zeitschätzung
@@ -116,6 +122,51 @@ def init_cw2217():
         print("CW2217 Chip mit Batterie-Profil initialisiert.")
     except Exception as e:
         print(f"WARNUNG: CW2217 Initialisierung fehlgeschlagen: {e}", file=sys.stderr)
+
+
+def ddc_checksum(data):
+    cs = 0x6E
+    for b in data: cs ^= b
+    return cs
+
+
+def init_brightness():
+    """Initialisiert DDC/CI Helligkeitssteuerung auf I2C Bus 14."""
+    global ddc_bus, current_brightness
+    try:
+        from smbus2 import i2c_msg as _i2c_msg
+        ddc_bus = smbus2.SMBus(DDC_BUS)
+        req = [0x51, 0x82, 0x01, 0x10]
+        req.append(ddc_checksum(req))
+        ddc_bus.i2c_rdwr(smbus2.i2c_msg.write(DDC_ADDR, req))
+        time.sleep(0.1)
+        resp = smbus2.i2c_msg.read(DDC_ADDR, 11)
+        ddc_bus.i2c_rdwr(resp)
+        current_brightness = list(resp)[9]
+        print(f"DDC/CI Helligkeit initialisiert: {current_brightness}%")
+    except Exception as e:
+        print(f"WARNUNG: DDC/CI nicht verfuegbar: {e}", file=sys.stderr)
+        ddc_bus = None
+
+
+def set_brightness(value):
+    """Setzt Bildschirmhelligkeit via DDC/CI (10-100%)."""
+    global current_brightness, ddc_bus
+    if ddc_bus is None:
+        return
+    try:
+        value = max(10, min(100, int(value)))
+        msg = [0x51, 0x84, 0x03, 0x10, 0x00, value]
+        msg.append(ddc_checksum(msg))
+        ddc_bus.i2c_rdwr(smbus2.i2c_msg.write(DDC_ADDR, msg))
+        current_brightness = value
+        time.sleep(0.05)
+    except Exception as e:
+        print(f"WARNUNG: Helligkeit konnte nicht gesetzt werden: {e}", file=sys.stderr)
+        try:
+            ddc_bus = smbus2.SMBus(DDC_BUS)
+        except Exception:
+            ddc_bus = None
 
 
 def read_battery_percent():
@@ -327,6 +378,9 @@ def read_control_commands():
                     current_kbd_backlight = new_state
                     write_kbd_backlight(current_kbd_backlight)
 
+            if "brightness" in data:
+                set_brightness(data["brightness"])
+
     except json.JSONDecodeError:
         pass
     except Exception as e:
@@ -385,6 +439,9 @@ def main():
     # CW2217 Chip initialisieren (aus Sleep-Modus wecken)
     init_cw2217()
 
+    # DDC/CI Helligkeit initialisieren
+    init_brightness()
+
     # Initialen Zustand der Tastaturbeleuchtung lesen
     current_kbd_backlight = read_kbd_backlight()
 
@@ -433,6 +490,7 @@ def main():
                 "fan_speed": current_fan_speed,
                 "fan_mode": current_fan_mode,
                 "kbd_backlight": current_kbd_backlight,
+                "brightness": current_brightness,
                 "timestamp": time.time()
             }
 
