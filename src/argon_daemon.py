@@ -74,14 +74,46 @@ def signal_handler(signum, frame):
     running = False
 
 
+CW2217_PROFILE_REG = 0x10
+CW2217_SOCALERT_REG = 0x0B
+CW2217_GPIOCONFIG_REG = 0x0A
+CW2217_ICSTATE_REG = 0xA7
+
+# Batterie-Profil fuer Argon ONE UP CM5 (von offiziellem Argon-Script)
+BATTERY_PROFILE = [
+    0x32,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0xA8,0xAA,0xBE,0xC6,0xB8,0xAE,0xC2,0x98,
+    0x82,0xFF,0xFF,0xCA,0x98,0x75,0x63,0x55,0x4E,0x4C,0x49,0x98,0x88,0xDC,0x34,0xDB,
+    0xD3,0xD4,0xD3,0xD0,0xCE,0xCB,0xBB,0xE7,0xA2,0xC2,0xC4,0xAE,0x96,0x89,0x80,0x74,
+    0x67,0x63,0x71,0x8E,0x9F,0x85,0x6F,0x3B,0x20,0x00,0xAB,0x10,0xFF,0xB0,0x73,0x00,
+    0x00,0x00,0x64,0x08,0xD3,0x77,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0xFA,
+]
+
+
 def init_cw2217():
-    """Initialisiert CW2217 Chip (weckt aus Sleep-Modus)."""
+    """Initialisiert CW2217 Chip mit Batterie-Profil fuer genaue SOC-Messung."""
     try:
+        # Schritt 1: Restart
         bus.write_byte_data(BATTERY_ADDR, CW2217_MODE_REG, 0x30)
-        time.sleep(0.2)
+        time.sleep(0.1)
+        # Schritt 2: Sleep-Modus fuer Profil-Upload
+        bus.write_byte_data(BATTERY_ADDR, CW2217_MODE_REG, 0xF0)
+        time.sleep(0.1)
+        # Schritt 3: Batterie-Profil schreiben (76 Bytes ab Register 0x10)
+        for i, byte in enumerate(BATTERY_PROFILE):
+            bus.write_byte_data(BATTERY_ADDR, CW2217_PROFILE_REG + i, byte)
+        time.sleep(0.1)
+        # Schritt 4: Alert und GPIO konfigurieren
+        bus.write_byte_data(BATTERY_ADDR, CW2217_SOCALERT_REG, 0x80)
+        bus.write_byte_data(BATTERY_ADDR, CW2217_GPIOCONFIG_REG, 0x00)
+        # Schritt 5: Chip aktivieren
         bus.write_byte_data(BATTERY_ADDR, CW2217_MODE_REG, 0x00)
-        time.sleep(0.5)
-        print("CW2217 Chip initialisiert.")
+        # Schritt 6: Warten bis IC bereit (max 5s)
+        for _ in range(50):
+            time.sleep(0.1)
+            state = bus.read_byte_data(BATTERY_ADDR, CW2217_ICSTATE_REG)
+            if state & 0x0C:
+                break
+        print("CW2217 Chip mit Batterie-Profil initialisiert.")
     except Exception as e:
         print(f"WARNUNG: CW2217 Initialisierung fehlgeschlagen: {e}", file=sys.stderr)
 
