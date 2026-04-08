@@ -45,6 +45,7 @@ KBD_BACKLIGHT_PATH = "/sys/class/leds/default-on/brightness"
 
 # Luefter-Konfiguration
 FAN_CONFIG_PATH = "/etc/argon/fan_config.json"
+DISPLAY_CONFIG_PATH = "/etc/argon/display_config.json"
 
 # Standard Luefter-Kurve (wird verwendet, falls Konfiguration fehlt)
 DEFAULT_FAN_CURVE = [
@@ -136,21 +137,51 @@ def init_brightness():
     try:
         from smbus2 import i2c_msg as _i2c_msg
         ddc_bus = smbus2.SMBus(DDC_BUS)
-        req = [0x51, 0x82, 0x01, 0x10]
-        req.append(ddc_checksum(req))
-        ddc_bus.i2c_rdwr(smbus2.i2c_msg.write(DDC_ADDR, req))
-        time.sleep(0.1)
-        resp = smbus2.i2c_msg.read(DDC_ADDR, 11)
-        ddc_bus.i2c_rdwr(resp)
-        current_brightness = list(resp)[9]
-        print(f"DDC/CI Helligkeit initialisiert: {current_brightness}%")
+        # Gespeicherten Wert laden und wiederherstellen
+        saved = load_saved_brightness()
+        if saved is not None:
+            current_brightness = saved
+            msg = [0x51, 0x84, 0x03, 0x10, 0x00, saved]
+            msg.append(ddc_checksum(msg))
+            ddc_bus.i2c_rdwr(smbus2.i2c_msg.write(DDC_ADDR, msg))
+            print(f"DDC/CI Helligkeit wiederhergestellt: {saved}%")
+        else:
+            req = [0x51, 0x82, 0x01, 0x10]
+            req.append(ddc_checksum(req))
+            ddc_bus.i2c_rdwr(smbus2.i2c_msg.write(DDC_ADDR, req))
+            time.sleep(0.1)
+            resp = smbus2.i2c_msg.read(DDC_ADDR, 11)
+            ddc_bus.i2c_rdwr(resp)
+            current_brightness = list(resp)[9]
+            print(f"DDC/CI Helligkeit gelesen: {current_brightness}%")
     except Exception as e:
         print(f"WARNUNG: DDC/CI nicht verfuegbar: {e}", file=sys.stderr)
         ddc_bus = None
 
 
+def save_brightness(value):
+    """Speichert Helligkeitswert dauerhaft nach /etc/argon/display_config.json."""
+    try:
+        os.makedirs("/etc/argon", exist_ok=True)
+        tmp = DISPLAY_CONFIG_PATH + ".tmp"
+        with open(tmp, "w") as f:
+            json.dump({"brightness": value}, f)
+        os.replace(tmp, DISPLAY_CONFIG_PATH)
+    except Exception as e:
+        print(f"WARNUNG: Helligkeit konnte nicht gespeichert werden: {e}", file=sys.stderr)
+
+
+def load_saved_brightness():
+    """Laedt gespeicherten Helligkeitswert aus /etc/argon/display_config.json."""
+    try:
+        with open(DISPLAY_CONFIG_PATH) as f:
+            return int(json.load(f).get("brightness", 80))
+    except Exception:
+        return None
+
+
 def set_brightness(value):
-    """Setzt Bildschirmhelligkeit via DDC/CI (10-100%)."""
+    """Setzt Bildschirmhelligkeit via DDC/CI (10-100%) und speichert dauerhaft."""
     global current_brightness, ddc_bus
     if ddc_bus is None:
         return
@@ -160,6 +191,7 @@ def set_brightness(value):
         msg.append(ddc_checksum(msg))
         ddc_bus.i2c_rdwr(smbus2.i2c_msg.write(DDC_ADDR, msg))
         current_brightness = value
+        save_brightness(value)
         time.sleep(0.05)
     except Exception as e:
         print(f"WARNUNG: Helligkeit konnte nicht gesetzt werden: {e}", file=sys.stderr)
