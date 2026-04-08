@@ -68,7 +68,7 @@ fi
 
 # Restzeit-Anzeige aufbereiten
 if [ -n "$TIME_H" ]; then
-    TIME_TEXT=" ${TIME_H}:$(printf '%02d' ${TIME_M})h"
+    TIME_TEXT="⏱ ${TIME_H}:$(printf '%02d' ${TIME_M})h"
 else
     TIME_TEXT=""
 fi
@@ -124,7 +124,12 @@ else
 fi
 
 # Genmon XML-Ausgabe
-echo "<txt>${BATT_ICON}<span foreground='${BATT_COLOR}'>${BATT_TEXT}${TIME_TEXT}</span>  <span foreground='#666666'>|</span>  🌡<span foreground='${TEMP_COLOR}'>${TEMP_TEXT}</span>  <span foreground='#666666'>|</span>  🌀<span foreground='${FAN_COLOR}'>${FAN_TEXT}</span>   </txt>"
+if [ -n "$TIME_TEXT" ]; then
+    BATT_PART="${BATT_ICON}<span foreground='${BATT_COLOR}'>${BATT_TEXT}</span>  <span foreground='#666666'>|</span>  <span foreground='${BATT_COLOR}'>${TIME_TEXT}</span>"
+else
+    BATT_PART="${BATT_ICON}<span foreground='${BATT_COLOR}'>${BATT_TEXT}</span>"
+fi
+echo "<txt>${BATT_PART}  <span foreground='#666666'>|</span>  🌡<span foreground='${TEMP_COLOR}'>${TEMP_TEXT}</span>  <span foreground='#666666'>|</span>  🌀<span foreground='${FAN_COLOR}'>${FAN_TEXT}</span>   </txt>"
 
 # Click-Handler: Control-Panel oeffnen
 echo "<txtclick>python3 /usr/local/bin/argon_control.py &</txtclick>"
