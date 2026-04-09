@@ -7,7 +7,7 @@ STATUS_FILE="/tmp/argon_dashboard_status"
 
 # Fallback wenn Status-Datei nicht existiert
 if [ ! -f "$STATUS_FILE" ]; then
-    echo "<txt><span foreground='#888888'>⏳ Warte...</span>   </txt>"
+    echo "<txt><span foreground='#888888'>Warte...</span>   </txt>"
     echo "<tool>Argon Dashboard: Daemon laeuft nicht oder startet gerade...</tool>"
     exit 0
 fi
@@ -15,7 +15,7 @@ fi
 # Status-Datei darf nicht aelter als 10 Sekunden sein
 FILE_AGE=$(( $(date +%s) - $(stat -c %Y "$STATUS_FILE" 2>/dev/null || echo 0) ))
 if [ "$FILE_AGE" -gt 10 ]; then
-    echo "<txt><span foreground='#FF4444'>⚠ Offline</span>   </txt>"
+    echo "<txt><span foreground='#FF4444'>Offline</span>   </txt>"
     echo "<tool>Argon Dashboard: Daemon antwortet nicht (Status ${FILE_AGE}s alt)</tool>"
     exit 0
 fi
@@ -59,16 +59,16 @@ except Exception as e:
 PYEOF
 )"
 
-# Batterie-Icon
+# Ladeindikator (weisser Pfeil, kein Emoji)
 if [ "$CHARGING" = "true" ]; then
-    BATT_ICON="⚡"
+    CHARGE_SPAN="  <span foreground='#89b4fa'>&#x2B06;</span>"
 else
-    BATT_ICON="🔋"
+    CHARGE_SPAN=""
 fi
 
-# Restzeit-Anzeige aufbereiten
+# Restzeit (ohne Emoji-Prefix)
 if [ -n "$TIME_H" ]; then
-    TIME_TEXT="⏱ ${TIME_H}:$(printf '%02d' ${TIME_M})h"
+    TIME_TEXT="${TIME_H}:$(printf '%02d' ${TIME_M})h"
 else
     TIME_TEXT=""
 fi
@@ -90,19 +90,18 @@ fi
 
 # Temperatur-Farbcodierung
 TEMP_INT=$(printf "%.0f" "$TEMP" 2>/dev/null || echo "-1")
-
 if [ "$TEMP_INT" -eq -1 ] 2>/dev/null; then
     TEMP_COLOR="#888888"
-    TEMP_TEXT="--°C"
+    TEMP_TEXT="--&#xB0;C"
 elif [ "$TEMP_INT" -gt 70 ]; then
     TEMP_COLOR="#FF4444"
-    TEMP_TEXT="${TEMP}°C"
+    TEMP_TEXT="${TEMP}&#xB0;C"
 elif [ "$TEMP_INT" -gt 60 ]; then
     TEMP_COLOR="#FF8800"
-    TEMP_TEXT="${TEMP}°C"
+    TEMP_TEXT="${TEMP}&#xB0;C"
 else
     TEMP_COLOR="#44CC44"
-    TEMP_TEXT="${TEMP}°C"
+    TEMP_TEXT="${TEMP}&#xB0;C"
 fi
 
 # Luefter-Anzeige
@@ -123,13 +122,20 @@ else
     fi
 fi
 
-# Genmon XML-Ausgabe
+# Trennzeichen und Icon-Spans (weiss, kein Emoji)
+SEP="  <span foreground='#555555'>|</span>  "
+ICON_BATT="<span foreground='#a6e3a1'>&#x25A0;</span> "
+ICON_TEMP="<span foreground='#f38ba8'>&#x25B2;</span> "
+ICON_FAN="<span foreground='#89dceb'>&#x21BA;</span> "
+
+# Batterie-Bereich zusammenbauen
+BATT_PART="${ICON_BATT}<span foreground='${BATT_COLOR}'>${BATT_TEXT}</span>${CHARGE_SPAN}"
 if [ -n "$TIME_TEXT" ]; then
-    BATT_PART="${BATT_ICON}<span foreground='${BATT_COLOR}'>${BATT_TEXT}</span>  <span foreground='#666666'>|</span>  <span foreground='${BATT_COLOR}'>${TIME_TEXT}</span>"
-else
-    BATT_PART="${BATT_ICON}<span foreground='${BATT_COLOR}'>${BATT_TEXT}</span>"
+    BATT_PART="${BATT_PART}${SEP}<span foreground='${BATT_COLOR}'>${TIME_TEXT}</span>"
 fi
-echo "<txt>${BATT_PART}  <span foreground='#666666'>|</span>  🌡<span foreground='${TEMP_COLOR}'>${TEMP_TEXT}</span>  <span foreground='#666666'>|</span>  🌀<span foreground='${FAN_COLOR}'>${FAN_TEXT}</span>   </txt>"
+
+# Genmon XML-Ausgabe
+echo "<txt>${BATT_PART}${SEP}${ICON_TEMP}<span foreground='${TEMP_COLOR}'>${TEMP_TEXT}</span>${SEP}${ICON_FAN}<span foreground='${FAN_COLOR}'>${FAN_TEXT}</span>   </txt>"
 
 # Click-Handler: Control-Panel oeffnen
 echo "<txtclick>python3 /usr/local/bin/argon_control.py &</txtclick>"
