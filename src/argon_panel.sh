@@ -97,25 +97,23 @@ else
     FAN_TEXT="${FAN_SPEED}%"
 fi
 
-ICON_SIZE="11700"
-TEXT_SIZE="12480"
 GAP="  "
 
 # Icons weiss (Unicode, kein Emoji)
-ICON_BATT="<span foreground='${WHITE}' size='${ICON_SIZE}'>&#x25A0;</span>${GAP}"
-ICON_TEMP="<span foreground='${WHITE}' size='${ICON_SIZE}'>&#x25B2;</span>${GAP}"
-ICON_FAN="<span foreground='${WHITE}' size='${ICON_SIZE}'>&#x21BA;</span>${GAP}"
+ICON_BATT="<span foreground='${WHITE}'>&#x25A0;</span>${GAP}"
+ICON_TEMP="<span foreground='${WHITE}'>&#x25B2;</span>${GAP}"
+ICON_FAN="<span foreground='${WHITE}'>&#x21BA;</span>${GAP}"
 
 # Batterie-Bereich
-BATT_PART="${ICON_BATT}<span foreground='${WHITE}' size='${TEXT_SIZE}'>${BATT_TEXT}</span>"
+BATT_PART="${ICON_BATT}<span foreground='${WHITE}'>${BATT_TEXT}</span>"
 if [ -n "$CHARGE_SPAN" ]; then
-    BATT_PART="${BATT_PART} <span foreground='${WHITE}' size='${ICON_SIZE}'>&#x2B06;</span>"
+    BATT_PART="${BATT_PART} <span foreground='${WHITE}'>&#x2B06;</span>"
 fi
 if [ -n "$TIME_TEXT" ]; then
-    BATT_PART="${BATT_PART}${SEP}<span foreground='${WHITE}' size='${TEXT_SIZE}'>${TIME_TEXT}</span>"
+    BATT_PART="${BATT_PART}${SEP}<span foreground='${WHITE}'>${TIME_TEXT}</span>"
 fi
 
 # Ausgabe
-echo "<txt>${BATT_PART}${SEP}${ICON_TEMP}<span foreground='${WHITE}' size='${TEXT_SIZE}'>${TEMP_TEXT}</span>${SEP}${ICON_FAN}<span foreground='${WHITE}' size='${TEXT_SIZE}'>${FAN_TEXT}</span>   </txt>"
+echo "<txt>${BATT_PART}${SEP}${ICON_TEMP}<span foreground='${WHITE}'>${TEMP_TEXT}</span>${SEP}${ICON_FAN}<span foreground='${WHITE}'>${FAN_TEXT}</span>   </txt>"
 echo "<txtclick>python3 /usr/local/bin/argon_control.py &</txtclick>"
 echo "<tool>Klicken fuer mehr Infos und Steuerung</tool>"
