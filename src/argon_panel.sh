@@ -98,9 +98,9 @@ else
 fi
 
 # Icons weiss (Unicode, kein Emoji)
-ICON_BATT="<span foreground='${WHITE}'>&#x25A0;</span> "
-ICON_TEMP="<span foreground='${WHITE}'>&#x25B2;</span> "
-ICON_FAN="<span foreground='${WHITE}'>&#x21BA;</span> "
+ICON_BATT="<span foreground='${WHITE}'>&#x25A0;</span>  "
+ICON_TEMP="<span foreground='${WHITE}'>&#x25B2;</span>  "
+ICON_FAN="<span foreground='${WHITE}'>&#x21BA;</span>  "
 
 # Batterie-Bereich
 BATT_PART="${ICON_BATT}<span foreground='${WHITE}'>${BATT_TEXT}</span>"
