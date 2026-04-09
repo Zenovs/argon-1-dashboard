@@ -344,18 +344,23 @@ class ArgonControlWindow(Gtk.Window):
         self.auto_info.set_halign(Gtk.Align.START)
         fan_box.pack_start(self.auto_info, False, False, 0)
 
-        slider_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
-        slider_box.pack_start(Gtk.Label(label="Geschwindigkeit:"), False, False, 0)
+        slider_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=4)
+        fan_row = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
+        fan_row.pack_start(Gtk.Label(label="Geschwindigkeit:"), False, False, 0)
         self.fan_adjustment = Gtk.Adjustment(
             value=self.fan_speed, lower=0, upper=100, step_increment=5, page_increment=10
         )
         self.fan_slider = Gtk.Scale(orientation=Gtk.Orientation.HORIZONTAL, adjustment=self.fan_adjustment)
         self.fan_slider.set_digits(0)
-        self.fan_slider.set_draw_value(True)
-        self.fan_slider.set_value_pos(Gtk.PositionType.RIGHT)
+        self.fan_slider.set_draw_value(False)
         self.fan_slider.set_hexpand(True)
         self.fan_slider.connect("value-changed", self.on_fan_speed_changed)
-        slider_box.pack_start(self.fan_slider, True, True, 0)
+        fan_row.pack_start(self.fan_slider, True, True, 0)
+        self.fan_speed_label = Gtk.Label(label=f"{self.fan_speed}%")
+        self.fan_speed_label.set_width_chars(4)
+        self.fan_speed_label.get_style_context().add_class("dim-label")
+        fan_row.pack_start(self.fan_speed_label, False, False, 0)
+        slider_box.pack_start(fan_row, False, False, 0)
         fan_box.pack_start(slider_box, False, False, 0)
         self.fan_slider.set_sensitive(self.fan_mode == "manual")
 
@@ -555,9 +560,11 @@ class ArgonControlWindow(Gtk.Window):
 
     def on_fan_speed_changed(self, widget):
         """Handler fuer Luefter-Slider-Aenderung."""
+        val = int(widget.get_value())
+        self.fan_speed_label.set_text(f"{val}%")
         if self._updating:
             return
-        self.fan_speed = int(widget.get_value())
+        self.fan_speed = val
         self._write_control()
 
     def on_kbd_toggled(self, widget, gparam):
