@@ -1,13 +1,15 @@
 #!/bin/bash
 # -*- coding: utf-8 -*-
 # Argon ONE UP CM5 - XFCE Genmon Panel-Applet
-# Liest JSON-Status und zeigt Batterie + Temperatur + Luefter mit Farbcodierung
 
 STATUS_FILE="/tmp/argon_dashboard_status"
+WHITE="#ffffff"
+DIM="#aaaaaa"
+SEP="  <span foreground='#555555'>|</span>  "
 
 # Fallback wenn Status-Datei nicht existiert
 if [ ! -f "$STATUS_FILE" ]; then
-    echo "<txt><span foreground='#888888'>Warte...</span>   </txt>"
+    echo "<txt><span foreground='${DIM}'>Warte...</span></txt>"
     echo "<tool>Argon Dashboard: Daemon laeuft nicht oder startet gerade...</tool>"
     exit 0
 fi
@@ -15,12 +17,12 @@ fi
 # Status-Datei darf nicht aelter als 10 Sekunden sein
 FILE_AGE=$(( $(date +%s) - $(stat -c %Y "$STATUS_FILE" 2>/dev/null || echo 0) ))
 if [ "$FILE_AGE" -gt 10 ]; then
-    echo "<txt><span foreground='#FF4444'>Offline</span>   </txt>"
+    echo "<txt><span foreground='${WHITE}'>Offline</span></txt>"
     echo "<tool>Argon Dashboard: Daemon antwortet nicht (Status ${FILE_AGE}s alt)</tool>"
     exit 0
 fi
 
-# JSON lesen via Heredoc (kein Quoting-Problem)
+# JSON lesen
 eval "$(python3 << 'PYEOF'
 import json, sys
 try:
@@ -46,8 +48,7 @@ try:
     else:
         print('TIME_H=')
         print('TIME_M=')
-    print(f'BATTERY_STABLE={str(d.get("battery_stable", False)).lower()}')
-except Exception as e:
+except Exception:
     print('BATTERY=-1')
     print('CHARGING=unknown')
     print('TEMP=-1')
@@ -55,90 +56,62 @@ except Exception as e:
     print('FAN_SPEED=0')
     print('TIME_H=')
     print('TIME_M=')
-    print('BATTERY_STABLE=false')
 PYEOF
 )"
 
-# Ladeindikator (weisser Pfeil, kein Emoji)
+# Ladeindikator
 if [ "$CHARGING" = "true" ]; then
-    CHARGE_SPAN="  <span foreground='#89b4fa'>&#x2B06;</span>"
+    CHARGE_SPAN="<span foreground='${WHITE}'>&#x2B06;</span>"
 else
     CHARGE_SPAN=""
 fi
 
-# Restzeit (ohne Emoji-Prefix)
+# Restzeit
 if [ -n "$TIME_H" ]; then
     TIME_TEXT="${TIME_H}:$(printf '%02d' ${TIME_M})h"
 else
     TIME_TEXT=""
 fi
 
-# Batterie-Farbcodierung
+# Batterie
 if [ "$BATTERY" -eq -1 ] 2>/dev/null; then
-    BATT_COLOR="#888888"
     BATT_TEXT="--"
-elif [ "$BATTERY" -lt 20 ]; then
-    BATT_COLOR="#FF4444"
-    BATT_TEXT="${BATTERY}%"
-elif [ "$BATTERY" -lt 50 ]; then
-    BATT_COLOR="#FF8800"
-    BATT_TEXT="${BATTERY}%"
 else
-    BATT_COLOR="#44CC44"
     BATT_TEXT="${BATTERY}%"
 fi
 
-# Temperatur-Farbcodierung
+# Temperatur
 TEMP_INT=$(printf "%.0f" "$TEMP" 2>/dev/null || echo "-1")
 if [ "$TEMP_INT" -eq -1 ] 2>/dev/null; then
-    TEMP_COLOR="#888888"
     TEMP_TEXT="--&#xB0;C"
-elif [ "$TEMP_INT" -gt 70 ]; then
-    TEMP_COLOR="#FF4444"
-    TEMP_TEXT="${TEMP}&#xB0;C"
-elif [ "$TEMP_INT" -gt 60 ]; then
-    TEMP_COLOR="#FF8800"
-    TEMP_TEXT="${TEMP}&#xB0;C"
 else
-    TEMP_COLOR="#44CC44"
     TEMP_TEXT="${TEMP}&#xB0;C"
 fi
 
-# Luefter-Anzeige
+# Luefter
 if [ "$FAN_RPM" -eq -1 ] 2>/dev/null; then
     FAN_TEXT="--"
-    FAN_COLOR="#888888"
 elif [ "$FAN_RPM" -eq 0 ] 2>/dev/null; then
     FAN_TEXT="Aus"
-    FAN_COLOR="#44CC44"
 else
     FAN_TEXT="${FAN_SPEED}%"
-    if [ "$FAN_SPEED" -ge 75 ] 2>/dev/null; then
-        FAN_COLOR="#FF4444"
-    elif [ "$FAN_SPEED" -ge 50 ] 2>/dev/null; then
-        FAN_COLOR="#FF8800"
-    else
-        FAN_COLOR="#44CC44"
-    fi
 fi
 
-# Trennzeichen und Icon-Spans (weiss, kein Emoji)
-SEP="  <span foreground='#555555'>|</span>  "
-ICON_BATT="<span foreground='#a6e3a1'>&#x25A0;</span> "
-ICON_TEMP="<span foreground='#f38ba8'>&#x25B2;</span> "
-ICON_FAN="<span foreground='#89dceb'>&#x21BA;</span> "
+# Icons weiss (Unicode, kein Emoji)
+ICON_BATT="<span foreground='${WHITE}'>&#x25A0;</span> "
+ICON_TEMP="<span foreground='${WHITE}'>&#x25B2;</span> "
+ICON_FAN="<span foreground='${WHITE}'>&#x21BA;</span> "
 
-# Batterie-Bereich zusammenbauen
-BATT_PART="${ICON_BATT}<span foreground='${BATT_COLOR}'>${BATT_TEXT}</span>${CHARGE_SPAN}"
+# Batterie-Bereich
+BATT_PART="${ICON_BATT}<span foreground='${WHITE}'>${BATT_TEXT}</span>"
+if [ -n "$CHARGE_SPAN" ]; then
+    BATT_PART="${BATT_PART} ${CHARGE_SPAN}"
+fi
 if [ -n "$TIME_TEXT" ]; then
-    BATT_PART="${BATT_PART}${SEP}<span foreground='${BATT_COLOR}'>${TIME_TEXT}</span>"
+    BATT_PART="${BATT_PART}${SEP}<span foreground='${WHITE}'>${TIME_TEXT}</span>"
 fi
 
-# Genmon XML-Ausgabe
-echo "<txt>${BATT_PART}${SEP}${ICON_TEMP}<span foreground='${TEMP_COLOR}'>${TEMP_TEXT}</span>${SEP}${ICON_FAN}<span foreground='${FAN_COLOR}'>${FAN_TEXT}</span>   </txt>"
-
-# Click-Handler: Control-Panel oeffnen
+# Ausgabe
+echo "<txt>${BATT_PART}${SEP}${ICON_TEMP}<span foreground='${WHITE}'>${TEMP_TEXT}</span>${SEP}${ICON_FAN}<span foreground='${WHITE}'>${FAN_TEXT}</span>   </txt>"
 echo "<txtclick>python3 /usr/local/bin/argon_control.py &</txtclick>"
-
-# Tooltip mit Details
 echo "<tool>Klicken fuer mehr Infos und Steuerung</tool>"
