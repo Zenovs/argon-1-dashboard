@@ -208,6 +208,14 @@ class ArgonControlWindow(Gtk.Window):
         self._updating = False
         self._bright_changed_at = 0  # Zeitstempel der letzten Nutzer-Aenderung
 
+        # Aktuelle Helligkeit aus Status-Datei lesen (vor Slider-Erstellung)
+        self._initial_brightness = 80
+        try:
+            with open(STATUS_FILE) as f:
+                self._initial_brightness = int(json.load(f).get("brightness", 80))
+        except Exception:
+            pass
+
         self._load_control_state()
 
         # CSS anwenden
@@ -287,7 +295,7 @@ class ArgonControlWindow(Gtk.Window):
         bright_box.pack_start(self._icon("weather-clear-night-symbolic"), False, False, 0)
 
         self.bright_adjustment = Gtk.Adjustment(
-            value=80, lower=10, upper=100, step_increment=5, page_increment=10
+            value=self._initial_brightness, lower=10, upper=100, step_increment=5, page_increment=10
         )
         self.bright_slider = Gtk.Scale(
             orientation=Gtk.Orientation.HORIZONTAL, adjustment=self.bright_adjustment
@@ -299,7 +307,7 @@ class ArgonControlWindow(Gtk.Window):
         bright_box.pack_start(self.bright_slider, True, True, 0)
         bright_box.pack_start(self._icon("weather-clear-symbolic"), False, False, 0)
 
-        self.bright_label = Gtk.Label(label="80%")
+        self.bright_label = Gtk.Label(label=f"{self._initial_brightness}%")
         self.bright_label.set_halign(Gtk.Align.CENTER)
         self.bright_label.get_style_context().add_class("dim-label")
         bright_outer.pack_start(self.bright_label, False, False, 0)
