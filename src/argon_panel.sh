@@ -97,8 +97,8 @@ else
     FAN_TEXT="${FAN_SPEED}%"
 fi
 
-ICON_SIZE="7500"
-TEXT_SIZE="8000"
+ICON_SIZE="9750"
+TEXT_SIZE="10400"
 GAP="      "
 
 # Icons weiss (Unicode, kein Emoji)
