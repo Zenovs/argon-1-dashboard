@@ -126,10 +126,27 @@ class ArgonControlWindow(Gtk.Window):
     scale slider {
         background-color: #cdd6f4;
         border-radius: 50%;
-        min-width: 14px;
-        min-height: 14px;
+        min-width: 16px;
+        min-height: 16px;
         border: none;
         box-shadow: none;
+        -gtk-outline-radius: 50%;
+    }
+    scale marks indicator {
+        background-color: transparent;
+        min-width: 0;
+        min-height: 0;
+    }
+    scale mark label {
+        color: #6c7086;
+        font-size: 10px;
+    }
+    image {
+        color: #cdd6f4;
+        -gtk-icon-style: symbolic;
+    }
+    .status-value {
+        color: #cdd6f4;
     }
     spinbutton {
         background-color: #313244;
@@ -257,14 +274,17 @@ class ArgonControlWindow(Gtk.Window):
         bright_frame.set_margin_top(6)
         main_box.pack_start(bright_frame, False, False, 0)
 
-        bright_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=10)
-        bright_box.set_margin_top(10)
-        bright_box.set_margin_bottom(10)
-        bright_box.set_margin_start(12)
-        bright_box.set_margin_end(12)
-        bright_frame.add(bright_box)
+        bright_outer = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=4)
+        bright_outer.set_margin_top(8)
+        bright_outer.set_margin_bottom(8)
+        bright_outer.set_margin_start(12)
+        bright_outer.set_margin_end(12)
+        bright_frame.add(bright_outer)
 
-        bright_box.pack_start(Gtk.Image.new_from_icon_name("weather-clear-night-symbolic", Gtk.IconSize.SMALL_TOOLBAR), False, False, 0)
+        bright_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
+        bright_outer.pack_start(bright_box, False, False, 0)
+
+        bright_box.pack_start(self._icon("weather-clear-night-symbolic"), False, False, 0)
 
         self.bright_adjustment = Gtk.Adjustment(
             value=80, lower=10, upper=100, step_increment=5, page_increment=10
@@ -273,14 +293,16 @@ class ArgonControlWindow(Gtk.Window):
             orientation=Gtk.Orientation.HORIZONTAL, adjustment=self.bright_adjustment
         )
         self.bright_slider.set_digits(0)
-        self.bright_slider.set_value_pos(Gtk.PositionType.RIGHT)
+        self.bright_slider.set_draw_value(False)
         self.bright_slider.set_hexpand(True)
-        self.bright_slider.add_mark(10, Gtk.PositionType.BOTTOM, "10%")
-        self.bright_slider.add_mark(50, Gtk.PositionType.BOTTOM, "50%")
-        self.bright_slider.add_mark(100, Gtk.PositionType.BOTTOM, "100%")
         self.bright_slider.connect("value-changed", self.on_brightness_changed)
         bright_box.pack_start(self.bright_slider, True, True, 0)
-        bright_box.pack_start(Gtk.Image.new_from_icon_name("weather-clear-symbolic", Gtk.IconSize.SMALL_TOOLBAR), False, False, 0)
+        bright_box.pack_start(self._icon("weather-clear-symbolic"), False, False, 0)
+
+        self.bright_label = Gtk.Label(label="80%")
+        self.bright_label.set_halign(Gtk.Align.CENTER)
+        self.bright_label.get_style_context().add_class("dim-label")
+        bright_outer.pack_start(self.bright_label, False, False, 0)
 
         # ── Lueftersteuerung ─────────────────────────────────
         fan_frame = Gtk.Frame()
@@ -518,6 +540,8 @@ class ArgonControlWindow(Gtk.Window):
 
     def on_brightness_changed(self, widget):
         """Handler fuer Helligkeits-Slider-Aenderung."""
+        val = int(self.bright_adjustment.get_value())
+        self.bright_label.set_text(f"{val}%")
         if self._updating:
             return
         self._bright_changed_at = time.time()
@@ -880,6 +904,7 @@ class ArgonControlWindow(Gtk.Window):
                 if not user_changed_recently:
                     if int(self.bright_adjustment.get_value()) != int(brightness):
                         self.bright_adjustment.set_value(brightness)
+                        self.bright_label.set_text(f"{int(brightness)}%")
 
             self._updating = False
 
