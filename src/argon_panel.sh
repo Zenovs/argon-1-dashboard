@@ -97,9 +97,9 @@ else
     FAN_TEXT="${FAN_SPEED}%"
 fi
 
-ICON_SIZE="23400"
-TEXT_SIZE="24960"
-GAP=" "
+ICON_SIZE="11700"
+TEXT_SIZE="12480"
+GAP="  "
 
 # Icons weiss (Unicode, kein Emoji)
 ICON_BATT="<span foreground='${WHITE}' size='${ICON_SIZE}'>&#x25A0;</span>${GAP}"
