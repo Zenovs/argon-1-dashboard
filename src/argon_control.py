@@ -16,6 +16,7 @@ import json
 import os
 import subprocess
 import sys
+import time
 
 try:
     import gi
@@ -69,77 +70,201 @@ DEFAULT_FAN_CURVE = [
 class ArgonControlWindow(Gtk.Window):
     """Hauptfenster des Argon Control Panels."""
 
+    CSS = b"""
+    window {
+        background-color: #1e1e2e;
+    }
+    frame {
+        color: #a6adc8;
+    }
+    frame > border {
+        border-color: #313244;
+        border-radius: 8px;
+    }
+    label {
+        color: #cdd6f4;
+    }
+    .title-label {
+        color: #cdd6f4;
+        font-size: 15px;
+        font-weight: bold;
+    }
+    .section-label {
+        color: #89b4fa;
+        font-weight: bold;
+    }
+    .dim-label {
+        color: #6c7086;
+        font-size: 11px;
+    }
+    button {
+        background: #313244;
+        background-image: none;
+        border: 1px solid #45475a;
+        border-radius: 6px;
+        color: #cdd6f4;
+        padding: 4px 10px;
+        box-shadow: none;
+    }
+    button:hover {
+        background: #45475a;
+        background-image: none;
+    }
+    button:active {
+        background: #585b70;
+        background-image: none;
+    }
+    scale trough {
+        background-color: #313244;
+        border-radius: 4px;
+        min-height: 4px;
+    }
+    scale highlight {
+        background-color: #89b4fa;
+        border-radius: 4px;
+    }
+    scale slider {
+        background-color: #cdd6f4;
+        border-radius: 50%;
+        min-width: 14px;
+        min-height: 14px;
+        border: none;
+        box-shadow: none;
+    }
+    spinbutton {
+        background-color: #313244;
+        color: #cdd6f4;
+        border-color: #45475a;
+        border-radius: 4px;
+    }
+    spinbutton text {
+        color: #cdd6f4;
+    }
+    radiobutton label, checkbutton label {
+        color: #cdd6f4;
+    }
+    combobox button {
+        background-color: #313244;
+        color: #cdd6f4;
+        border-color: #45475a;
+    }
+    separator {
+        background-color: #313244;
+    }
+    """
+
+    def _apply_css(self):
+        provider = Gtk.CssProvider()
+        provider.load_from_data(self.CSS)
+        Gtk.StyleContext.add_provider_for_screen(
+            self.get_screen(),
+            provider,
+            Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION
+        )
+
+    @staticmethod
+    def _icon(name, size=Gtk.IconSize.SMALL_TOOLBAR):
+        img = Gtk.Image.new_from_icon_name(name, size)
+        return img
+
+    @staticmethod
+    def _section(icon_name, text):
+        """Erstellt ein Icon+Label fuer Frame-Bereiche."""
+        box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=6)
+        box.pack_start(Gtk.Image.new_from_icon_name(icon_name, Gtk.IconSize.SMALL_TOOLBAR), False, False, 0)
+        lbl = Gtk.Label(label=f" {text} ")
+        lbl.get_style_context().add_class("section-label")
+        box.pack_start(lbl, False, False, 0)
+        return box
+
     def __init__(self):
-        super().__init__(title="Argon ONE UP CM5 - Steuerung")
-        self.set_default_size(420, 720)
+        super().__init__(title="Argon ONE UP — Dashboard")
+        self.set_default_size(440, 760)
         self.set_resizable(False)
-        self.set_border_width(12)
+        self.set_border_width(14)
         self.set_position(Gtk.WindowPosition.CENTER)
 
         # Aktueller Zustand
         self.fan_mode = "auto"
         self.fan_speed = 0
         self.kbd_backlight = False
-        self._updating = False  # Verhindert Rueckkopplung
+        self._updating = False
+        self._bright_changed_at = 0  # Zeitstempel der letzten Nutzer-Aenderung
 
-        # Initialen Zustand aus Control-Datei lesen
         self._load_control_state()
 
-        # Layout erstellen
+        # CSS anwenden
+        self._apply_css()
+
         main_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=10)
         self.add(main_box)
 
         # ── Titel ────────────────────────────────────────────
-        title_label = Gtk.Label()
-        title_label.set_markup("<b><big>🔧 Argon Dashboard Steuerung</big></b>")
-        title_label.set_margin_bottom(5)
-        main_box.pack_start(title_label, False, False, 0)
+        title_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=10)
+        title_box.set_margin_bottom(4)
+        title_icon = Gtk.Image.new_from_icon_name("computer-laptop-symbolic", Gtk.IconSize.LARGE_TOOLBAR)
+        title_box.pack_start(title_icon, False, False, 0)
+        title_lbl = Gtk.Label(label="Argon ONE UP  —  Dashboard")
+        title_lbl.get_style_context().add_class("title-label")
+        title_lbl.set_halign(Gtk.Align.START)
+        title_box.pack_start(title_lbl, False, False, 0)
+        main_box.pack_start(title_box, False, False, 0)
 
         sep = Gtk.Separator(orientation=Gtk.Orientation.HORIZONTAL)
         main_box.pack_start(sep, False, False, 0)
 
         # ── Status-Anzeige ───────────────────────────────────
-        status_frame = Gtk.Frame(label=" 📊 Status ")
-        status_frame.set_margin_top(5)
+        status_frame = Gtk.Frame()
+        status_frame.set_label_widget(self._section("dialog-information-symbolic", "Status"))
+        status_frame.set_margin_top(4)
         main_box.pack_start(status_frame, False, False, 0)
 
         status_grid = Gtk.Grid()
-        status_grid.set_column_spacing(12)
-        status_grid.set_row_spacing(6)
-        status_grid.set_margin_top(8)
-        status_grid.set_margin_bottom(8)
-        status_grid.set_margin_start(10)
-        status_grid.set_margin_end(10)
+        status_grid.set_column_spacing(14)
+        status_grid.set_row_spacing(7)
+        status_grid.set_margin_top(10)
+        status_grid.set_margin_bottom(10)
+        status_grid.set_margin_start(12)
+        status_grid.set_margin_end(12)
         status_frame.add(status_grid)
 
-        # Status-Labels
-        labels = ["🔋 Batterie:", "🌡 CPU-Temp:", "🌀 Luefter:", "🔌 Ladestatus:", "⏱ Restzeit:"]
+        icon_labels = [
+            ("battery-good-symbolic",          "Batterie"),
+            ("temperature-symbolic",           "CPU-Temp"),
+            ("system-run-symbolic",            "Luefter"),
+            ("battery-full-charging-symbolic", "Ladestatus"),
+            ("alarm-symbolic",                 "Restzeit"),
+        ]
         self.status_values = []
-        for i, text in enumerate(labels):
-            lbl = Gtk.Label(label=text)
+        for i, (icon_name, text) in enumerate(icon_labels):
+            row = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=6)
+            row.pack_start(Gtk.Image.new_from_icon_name(icon_name, Gtk.IconSize.SMALL_TOOLBAR), False, False, 0)
+            lbl = Gtk.Label(label=text + ":")
             lbl.set_halign(Gtk.Align.START)
-            status_grid.attach(lbl, 0, i, 1, 1)
+            lbl.set_size_request(110, -1)
+            row.pack_start(lbl, False, False, 0)
+            status_grid.attach(row, 0, i, 1, 1)
 
-            val = Gtk.Label(label="--")
+            val = Gtk.Label(label="—")
             val.set_halign(Gtk.Align.START)
             val.set_selectable(True)
             status_grid.attach(val, 1, i, 1, 1)
             self.status_values.append(val)
 
         # ── Helligkeit ───────────────────────────────────────
-        bright_frame = Gtk.Frame(label=" ☀ Bildschirmhelligkeit ")
-        bright_frame.set_margin_top(5)
+        bright_frame = Gtk.Frame()
+        bright_frame.set_label_widget(self._section("display-brightness-symbolic", "Bildschirmhelligkeit"))
+        bright_frame.set_margin_top(6)
         main_box.pack_start(bright_frame, False, False, 0)
 
-        bright_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
-        bright_box.set_margin_top(8)
-        bright_box.set_margin_bottom(8)
-        bright_box.set_margin_start(10)
-        bright_box.set_margin_end(10)
+        bright_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=10)
+        bright_box.set_margin_top(10)
+        bright_box.set_margin_bottom(10)
+        bright_box.set_margin_start(12)
+        bright_box.set_margin_end(12)
         bright_frame.add(bright_box)
 
-        bright_label = Gtk.Label(label="Helligkeit:")
-        bright_box.pack_start(bright_label, False, False, 0)
+        bright_box.pack_start(Gtk.Image.new_from_icon_name("weather-clear-night-symbolic", Gtk.IconSize.SMALL_TOOLBAR), False, False, 0)
 
         self.bright_adjustment = Gtk.Adjustment(
             value=80, lower=10, upper=100, step_increment=5, page_increment=10
@@ -155,55 +280,46 @@ class ArgonControlWindow(Gtk.Window):
         self.bright_slider.add_mark(100, Gtk.PositionType.BOTTOM, "100%")
         self.bright_slider.connect("value-changed", self.on_brightness_changed)
         bright_box.pack_start(self.bright_slider, True, True, 0)
+        bright_box.pack_start(Gtk.Image.new_from_icon_name("weather-clear-symbolic", Gtk.IconSize.SMALL_TOOLBAR), False, False, 0)
 
         # ── Lueftersteuerung ─────────────────────────────────
-        fan_frame = Gtk.Frame(label=" 🌀 Lueftersteuerung ")
-        fan_frame.set_margin_top(5)
+        fan_frame = Gtk.Frame()
+        fan_frame.set_label_widget(self._section("system-run-symbolic", "Lueftersteuerung"))
+        fan_frame.set_margin_top(6)
         main_box.pack_start(fan_frame, False, False, 0)
 
         fan_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=8)
-        fan_box.set_margin_top(8)
-        fan_box.set_margin_bottom(8)
-        fan_box.set_margin_start(10)
-        fan_box.set_margin_end(10)
+        fan_box.set_margin_top(10)
+        fan_box.set_margin_bottom(10)
+        fan_box.set_margin_start(12)
+        fan_box.set_margin_end(12)
         fan_frame.add(fan_box)
 
-        # Modus-Auswahl
         mode_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=10)
-        mode_label = Gtk.Label(label="Modus:")
-        mode_box.pack_start(mode_label, False, False, 0)
-
+        mode_lbl = Gtk.Label(label="Modus:")
+        mode_box.pack_start(mode_lbl, False, False, 0)
         self.radio_auto = Gtk.RadioButton.new_with_label_from_widget(None, "Auto")
         self.radio_manual = Gtk.RadioButton.new_with_label_from_widget(self.radio_auto, "Manuell")
         mode_box.pack_start(self.radio_auto, False, False, 0)
         mode_box.pack_start(self.radio_manual, False, False, 0)
-
         if self.fan_mode == "manual":
             self.radio_manual.set_active(True)
-        else:
-            self.radio_auto.set_active(True)
-
         self.radio_auto.connect("toggled", self.on_fan_mode_changed)
         fan_box.pack_start(mode_box, False, False, 0)
 
-        # Auto-Modus Info
         self.auto_info = Gtk.Label()
+        self.auto_info.get_style_context().add_class("dim-label")
         self._update_auto_info_label()
         self.auto_info.set_line_wrap(True)
         self.auto_info.set_halign(Gtk.Align.START)
         fan_box.pack_start(self.auto_info, False, False, 0)
 
-        # Slider
         slider_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
-        slider_label = Gtk.Label(label="Geschwindigkeit:")
-        slider_box.pack_start(slider_label, False, False, 0)
-
+        slider_box.pack_start(Gtk.Label(label="Geschwindigkeit:"), False, False, 0)
         self.fan_adjustment = Gtk.Adjustment(
             value=self.fan_speed, lower=0, upper=100, step_increment=5, page_increment=10
         )
-        self.fan_slider = Gtk.Scale(
-            orientation=Gtk.Orientation.HORIZONTAL, adjustment=self.fan_adjustment
-        )
+        self.fan_slider = Gtk.Scale(orientation=Gtk.Orientation.HORIZONTAL, adjustment=self.fan_adjustment)
         self.fan_slider.set_digits(0)
         self.fan_slider.set_value_pos(Gtk.PositionType.RIGHT)
         self.fan_slider.set_hexpand(True)
@@ -213,112 +329,97 @@ class ArgonControlWindow(Gtk.Window):
         self.fan_slider.connect("value-changed", self.on_fan_speed_changed)
         slider_box.pack_start(self.fan_slider, True, True, 0)
         fan_box.pack_start(slider_box, False, False, 0)
-
-        # Slider aktivieren/deaktivieren je nach Modus
         self.fan_slider.set_sensitive(self.fan_mode == "manual")
 
-        # ── Luefter-Kurve konfigurieren ──────────────────────
-        curve_frame = Gtk.Frame(label=" 📈 Luefter-Kurve konfigurieren ")
-        curve_frame.set_margin_top(5)
+        # ── Luefter-Kurve ─────────────────────────────────────
+        curve_frame = Gtk.Frame()
+        curve_frame.set_label_widget(self._section("preferences-system-symbolic", "Luefter-Kurve"))
+        curve_frame.set_margin_top(6)
         main_box.pack_start(curve_frame, False, False, 0)
 
         curve_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=6)
-        curve_box.set_margin_top(8)
-        curve_box.set_margin_bottom(8)
-        curve_box.set_margin_start(10)
-        curve_box.set_margin_end(10)
+        curve_box.set_margin_top(10)
+        curve_box.set_margin_bottom(10)
+        curve_box.set_margin_start(12)
+        curve_box.set_margin_end(12)
         curve_frame.add(curve_box)
 
-        # Header
         header_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
-        temp_header = Gtk.Label()
-        temp_header.set_markup("<b>Temperatur (°C)</b>")
-        temp_header.set_size_request(140, -1)
-        header_box.pack_start(temp_header, False, False, 0)
-
-        arrow_header = Gtk.Label(label="→")
-        header_box.pack_start(arrow_header, False, False, 0)
-
-        speed_header = Gtk.Label()
-        speed_header.set_markup("<b>Luefter (%)</b>")
-        speed_header.set_size_request(140, -1)
-        header_box.pack_start(speed_header, False, False, 0)
+        th = Gtk.Label()
+        th.set_markup("<b>Temperatur (°C)</b>")
+        th.set_size_request(140, -1)
+        header_box.pack_start(th, False, False, 0)
+        header_box.pack_start(Gtk.Label(label="→"), False, False, 0)
+        sh = Gtk.Label()
+        sh.set_markup("<b>Luefter (%)</b>")
+        sh.set_size_request(140, -1)
+        header_box.pack_start(sh, False, False, 0)
         curve_box.pack_start(header_box, False, False, 0)
 
-        # 5 Zeilen mit Eingabefeldern
-        self.curve_entries = []  # [(temp_spin, speed_spin), ...]
+        self.curve_entries = []
         current_curve = self._load_fan_curve()
-
         for i in range(5):
             row_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
-
-            # Temperatur SpinButton
             temp_adj = Gtk.Adjustment(value=current_curve[i]["temp"] if i < len(current_curve) else 50 + i * 5,
                                       lower=0, upper=100, step_increment=1, page_increment=5)
             temp_spin = Gtk.SpinButton(adjustment=temp_adj, climb_rate=1, digits=0)
             temp_spin.set_size_request(140, -1)
             row_box.pack_start(temp_spin, False, False, 0)
-
-            arrow_label = Gtk.Label(label="→")
-            row_box.pack_start(arrow_label, False, False, 0)
-
-            # Speed SpinButton
+            row_box.pack_start(Gtk.Label(label="→"), False, False, 0)
             speed_adj = Gtk.Adjustment(value=current_curve[i]["speed"] if i < len(current_curve) else 0,
                                        lower=0, upper=100, step_increment=1, page_increment=5)
             speed_spin = Gtk.SpinButton(adjustment=speed_adj, climb_rate=1, digits=0)
             speed_spin.set_size_request(140, -1)
             row_box.pack_start(speed_spin, False, False, 0)
-
             curve_box.pack_start(row_box, False, False, 0)
             self.curve_entries.append((temp_spin, speed_spin))
 
-        # Buttons
         btn_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
         btn_box.set_margin_top(4)
-
-        save_btn = Gtk.Button(label="💾 Speichern")
+        save_btn = Gtk.Button()
+        save_btn.set_image(Gtk.Image.new_from_icon_name("document-save-symbolic", Gtk.IconSize.BUTTON))
+        save_btn.set_label("Speichern")
+        save_btn.set_always_show_image(True)
         save_btn.connect("clicked", self.on_save_curve)
         btn_box.pack_start(save_btn, True, True, 0)
-
-        reset_btn = Gtk.Button(label="🔄 Standard wiederherstellen")
+        reset_btn = Gtk.Button()
+        reset_btn.set_image(Gtk.Image.new_from_icon_name("edit-undo-symbolic", Gtk.IconSize.BUTTON))
+        reset_btn.set_label("Standard")
+        reset_btn.set_always_show_image(True)
         reset_btn.connect("clicked", self.on_reset_curve)
         btn_box.pack_start(reset_btn, True, True, 0)
-
         curve_box.pack_start(btn_box, False, False, 0)
 
-        # Status-Label fuer Kurve
         self.curve_status = Gtk.Label()
         self.curve_status.set_halign(Gtk.Align.START)
         curve_box.pack_start(self.curve_status, False, False, 0)
 
         # ── Deckel-Aktion ────────────────────────────────────
-        lid_frame = Gtk.Frame(label=" 🖥 Deckel zuklappen ")
-        lid_frame.set_margin_top(5)
+        lid_frame = Gtk.Frame()
+        lid_frame.set_label_widget(self._section("system-suspend-symbolic", "Deckel zuklappen"))
+        lid_frame.set_margin_top(6)
         main_box.pack_start(lid_frame, False, False, 0)
 
         lid_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=8)
-        lid_box.set_margin_top(8)
-        lid_box.set_margin_bottom(8)
-        lid_box.set_margin_start(10)
-        lid_box.set_margin_end(10)
+        lid_box.set_margin_top(10)
+        lid_box.set_margin_bottom(10)
+        lid_box.set_margin_start(12)
+        lid_box.set_margin_end(12)
         lid_frame.add(lid_box)
 
         lid_row = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=10)
-        lid_label = Gtk.Label(label="Aktion:")
-        lid_row.pack_start(lid_label, False, False, 0)
-
+        lid_row.pack_start(Gtk.Label(label="Aktion:"), False, False, 0)
         self.lid_combo = Gtk.ComboBoxText()
         for _, label in LID_ACTIONS:
             self.lid_combo.append_text(label)
         current_action = self._read_lid_action()
         action_keys = [a[0] for a in LID_ACTIONS]
-        if current_action in action_keys:
-            self.lid_combo.set_active(action_keys.index(current_action))
-        else:
-            self.lid_combo.set_active(0)
+        self.lid_combo.set_active(action_keys.index(current_action) if current_action in action_keys else 0)
         lid_row.pack_start(self.lid_combo, True, True, 0)
-
-        lid_apply_btn = Gtk.Button(label="✅ Anwenden")
+        lid_apply_btn = Gtk.Button()
+        lid_apply_btn.set_image(Gtk.Image.new_from_icon_name("emblem-ok-symbolic", Gtk.IconSize.BUTTON))
+        lid_apply_btn.set_label("Anwenden")
+        lid_apply_btn.set_always_show_image(True)
         lid_apply_btn.connect("clicked", self.on_save_lid_action)
         lid_row.pack_start(lid_apply_btn, False, False, 0)
         lid_box.pack_start(lid_row, False, False, 0)
@@ -327,9 +428,9 @@ class ArgonControlWindow(Gtk.Window):
         self.lid_status.set_halign(Gtk.Align.START)
         lid_box.pack_start(self.lid_status, False, False, 0)
 
-        # Bildschirm sperren beim Aufwachen
-        lock_row = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=10)
-        self.lock_check = Gtk.CheckButton(label="🔒 Passwort beim Aufwachen verlangen")
+        lock_row = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
+        lock_row.pack_start(Gtk.Image.new_from_icon_name("system-lock-screen-symbolic", Gtk.IconSize.SMALL_TOOLBAR), False, False, 0)
+        self.lock_check = Gtk.CheckButton(label="Passwort beim Aufwachen verlangen")
         self.lock_check.set_active(self._read_lock_on_resume())
         self.lock_check.connect("toggled", self.on_lock_on_resume_toggled)
         lock_row.pack_start(self.lock_check, False, False, 0)
@@ -339,25 +440,27 @@ class ArgonControlWindow(Gtk.Window):
         self.lock_status.set_halign(Gtk.Align.START)
         lid_box.pack_start(self.lock_status, False, False, 0)
 
-        # ── Schliessen-Button ────────────────────────────────
         # ── Buttons unten ────────────────────────────────────
         btn_bottom = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
         btn_bottom.set_margin_top(10)
 
-        update_btn = Gtk.Button(label="🔄 Update")
+        update_btn = Gtk.Button()
+        update_btn.set_image(Gtk.Image.new_from_icon_name("software-update-available-symbolic", Gtk.IconSize.BUTTON))
+        update_btn.set_label("Update")
+        update_btn.set_always_show_image(True)
         update_btn.connect("clicked", self.on_update_clicked)
         btn_bottom.pack_start(update_btn, True, True, 0)
 
-        close_btn = Gtk.Button(label="Schliessen")
+        close_btn = Gtk.Button()
+        close_btn.set_image(Gtk.Image.new_from_icon_name("window-close-symbolic", Gtk.IconSize.BUTTON))
+        close_btn.set_label("Schliessen")
+        close_btn.set_always_show_image(True)
         close_btn.connect("clicked", lambda w: self.destroy())
         btn_bottom.pack_start(close_btn, True, True, 0)
 
         main_box.pack_end(btn_bottom, False, False, 0)
 
-        # Timer fuer Status-Updates (1 Sekunde)
         GLib.timeout_add_seconds(1, self.update_status)
-
-        # Initialer Status
         self.update_status()
 
     def _load_control_state(self):
@@ -417,6 +520,7 @@ class ArgonControlWindow(Gtk.Window):
         """Handler fuer Helligkeits-Slider-Aenderung."""
         if self._updating:
             return
+        self._bright_changed_at = time.time()
         self._write_control()
 
     def on_fan_speed_changed(self, widget):
@@ -769,11 +873,13 @@ class ArgonControlWindow(Gtk.Window):
                 self.kbd_switch.set_active(kbd)
                 self._update_kbd_label()
 
-            # Helligkeit synchronisieren
+            # Helligkeit synchronisieren (nur wenn Nutzer nicht gerade geaendert hat)
             brightness = data.get("brightness")
             if brightness is not None:
-                if int(self.bright_adjustment.get_value()) != int(brightness):
-                    self.bright_adjustment.set_value(brightness)
+                user_changed_recently = (time.time() - self._bright_changed_at) < 5.0
+                if not user_changed_recently:
+                    if int(self.bright_adjustment.get_value()) != int(brightness):
+                        self.bright_adjustment.set_value(brightness)
 
             self._updating = False
 

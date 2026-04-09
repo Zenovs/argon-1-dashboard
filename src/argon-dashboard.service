@@ -19,8 +19,9 @@ SupplementaryGroups=i2c
 
 # Sicherheit - gelockert fuer /sys/class/hwmon und /sys/class/leds Zugriff
 ProtectSystem=full
-ReadWritePaths=/tmp /sys/class/hwmon /sys/class/leds
+ReadWritePaths=/tmp /sys/class/hwmon /sys/class/leds /etc/argon
 DeviceAllow=/dev/i2c-1 rw
+DeviceAllow=/dev/i2c-14 rw
 ProtectHome=true
 ProtectKernelModules=true
 
