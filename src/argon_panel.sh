@@ -99,7 +99,7 @@ fi
 
 ICON_SIZE="7500"
 TEXT_SIZE="8000"
-GAP="   "
+GAP="      "
 
 # Icons weiss (Unicode, kein Emoji)
 ICON_BATT="<span foreground='${WHITE}' size='${ICON_SIZE}'>&#x25A0;</span>${GAP}"
