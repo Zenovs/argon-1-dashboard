@@ -401,17 +401,26 @@ def read_control_commands():
                     current_fan_mode = mode
 
             if "fan_speed" in data:
-                speed = int(data["fan_speed"])
-                current_fan_speed = max(0, min(100, speed))
+                try:
+                    speed = int(data["fan_speed"])
+                    current_fan_speed = max(0, min(100, speed))
+                except (ValueError, TypeError):
+                    pass
 
             if "kbd_backlight" in data:
-                new_state = bool(data["kbd_backlight"])
-                if new_state != current_kbd_backlight:
-                    current_kbd_backlight = new_state
-                    write_kbd_backlight(current_kbd_backlight)
+                try:
+                    new_state = bool(data["kbd_backlight"])
+                    if new_state != current_kbd_backlight:
+                        current_kbd_backlight = new_state
+                        write_kbd_backlight(current_kbd_backlight)
+                except (ValueError, TypeError):
+                    pass
 
             if "brightness" in data:
-                set_brightness(data["brightness"])
+                try:
+                    set_brightness(int(data["brightness"]))
+                except (ValueError, TypeError):
+                    pass
 
     except json.JSONDecodeError:
         pass

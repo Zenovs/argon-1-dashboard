@@ -10,7 +10,13 @@ GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
 NC='\033[0m'
 
-USER_NAME="zenovs"
+# Echten Benutzer ermitteln (nicht root)
+USER_NAME="${SUDO_USER:-$(logname 2>/dev/null || echo '')}"
+if [ -z "$USER_NAME" ] || [ "$USER_NAME" = "root" ]; then
+    echo -e "${RED}FEHLER: Konnte den aufrufenden Benutzer nicht ermitteln.${NC}"
+    echo "Bitte ausfuehren mit: sudo bash uninstall.sh"
+    exit 1
+fi
 
 echo -e "${RED}╔══════════════════════════════════════════════╗${NC}"
 echo -e "${RED}║  Argon ONE UP CM5 Dashboard - Deinstallation ║${NC}"

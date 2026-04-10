@@ -49,9 +49,12 @@ def write_brightness(value):
         data = {}
     data["brightness"] = value
     tmp = CONTROL_FILE + ".tmp"
-    with open(tmp, "w") as f:
-        json.dump(data, f)
-    os.replace(tmp, CONTROL_FILE)
+    try:
+        with open(tmp, "w") as f:
+            json.dump(data, f)
+        os.replace(tmp, CONTROL_FILE)
+    except Exception as e:
+        print(f"FEHLER: Steuerdatei konnte nicht geschrieben werden: {e}", file=sys.stderr)
 
 
 def find_keyboard():

@@ -11,9 +11,16 @@ GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
 NC='\033[0m' # No Color
 
-USER_NAME="zenovs"
-USER_HOME="/home/zenovs"
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+
+# Echten Benutzer ermitteln (nicht root)
+USER_NAME="${SUDO_USER:-$(logname 2>/dev/null || echo '')}"
+if [ -z "$USER_NAME" ] || [ "$USER_NAME" = "root" ]; then
+    echo -e "${RED}FEHLER: Konnte den aufrufenden Benutzer nicht ermitteln.${NC}"
+    echo "Bitte ausfuehren mit: sudo bash install.sh"
+    exit 1
+fi
+USER_HOME="/home/${USER_NAME}"
 
 echo -e "${GREEN}╔══════════════════════════════════════════════╗${NC}"
 echo -e "${GREEN}║  Argon ONE UP CM5 Dashboard - Installation   ║${NC}"
@@ -29,7 +36,7 @@ fi
 
 # ── Pruefen ob User existiert ───────────────────────────────
 if ! id "$USER_NAME" &>/dev/null; then
-    echo -e "${RED}FEHLER: Benutzer '$USER_NAME' existiert nicht!${NC}"
+    echo -e "${RED}FEHLER: Benutzer '${USER_NAME}' existiert nicht!${NC}"
     exit 1
 fi
 
@@ -54,7 +61,7 @@ else
 fi
 
 # xfce4-genmon-plugin pruefen und installieren
-if ! dpkg -l xfce4-genmon-plugin &>/dev/null; then
+if ! dpkg -l | grep -q "^ii.*xfce4-genmon-plugin"; then
     echo "  → Installiere xfce4-genmon-plugin..."
     apt-get install -y xfce4-genmon-plugin
 else
@@ -102,6 +109,10 @@ echo -e "${YELLOW}[5/8] Kopiere Control-Panel...${NC}"
 cp "${SCRIPT_DIR}/src/argon_control.py" /usr/local/bin/argon_control.py
 chmod 755 /usr/local/bin/argon_control.py
 echo "  → /usr/local/bin/argon_control.py ✓"
+
+cp "${SCRIPT_DIR}/src/argon_hotkeys.py" /usr/local/bin/argon_hotkeys.py
+chmod 755 /usr/local/bin/argon_hotkeys.py
+echo "  → /usr/local/bin/argon_hotkeys.py ✓"
 
 # ── Systemd-Service einrichten ──────────────────────────────
 echo -e "${YELLOW}[6/8] Richte Systemd-Service ein...${NC}"

@@ -12,6 +12,7 @@ Autor: zenovs
 Lizenz: MIT
 """
 
+import html
 import json
 import os
 import subprocess
@@ -531,7 +532,9 @@ class ArgonControlWindow(Gtk.Window):
         self.auto_info.set_markup(f"<small><i>Auto: {info_text}</i></small>")
 
     def _update_kbd_label(self):
-        """Aktualisiert Tastaturbeleuchtungs-Label."""
+        """Aktualisiert Tastaturbeleuchtungs-Label (falls Widget vorhanden)."""
+        if not hasattr(self, "kbd_switch") or not hasattr(self, "kbd_status"):
+            return
         if self.kbd_switch.get_active():
             self.kbd_status.set_markup("<span foreground='#44CC44'><b>Ein</b></span>")
         else:
@@ -614,14 +617,12 @@ class ArgonControlWindow(Gtk.Window):
             )
             self._update_auto_info_label()
         except PermissionError:
-            # Fallback: Mit pkexec/sudo schreiben
+            # Fallback: Mit pkexec schreiben (kein bash -c, kein Injection-Risiko)
             try:
-                cmd = f"echo '{config_data}' | sudo tee {FAN_CONFIG_PATH} > /dev/null"
                 result = subprocess.run(
-                    ["pkexec", "bash", "-c",
-                     f"mkdir -p /etc/argon && echo '{config_data}' > {FAN_CONFIG_PATH} && "
-                     f"chmod 644 {FAN_CONFIG_PATH} && chown root:root {FAN_CONFIG_PATH}"],
-                    capture_output=True, text=True, timeout=30
+                    ["pkexec", "tee", FAN_CONFIG_PATH],
+                    input=(config_data + "\n").encode(),
+                    capture_output=True, timeout=30
                 )
                 if result.returncode == 0:
                     self.curve_status.set_markup(
@@ -638,11 +639,11 @@ class ArgonControlWindow(Gtk.Window):
                 )
             except Exception as e:
                 self.curve_status.set_markup(
-                    f"<span foreground='#FF4444'>❌ Fehler: {str(e)}</span>"
+                    f"<span foreground='#FF4444'>❌ Fehler: {html.escape(str(e))}</span>"
                 )
         except Exception as e:
             self.curve_status.set_markup(
-                f"<span foreground='#FF4444'>❌ Fehler: {str(e)}</span>"
+                f"<span foreground='#FF4444'>❌ Fehler: {html.escape(str(e))}</span>"
             )
 
     def on_reset_curve(self, widget):
@@ -659,12 +660,13 @@ class ArgonControlWindow(Gtk.Window):
     def on_update_clicked(self, widget):
         """Oeffnet Terminal und fuehrt Update-Skript aus."""
         update_cmd = (
-            "curl -fsSL https://raw.githubusercontent.com/Zenovs/argon-1-dashboard/main/update.sh | sudo bash"
+            "curl -fsSL https://raw.githubusercontent.com/Zenovs/argon-1-dashboard/main/update.sh"
+            " | sudo bash"
             "; echo ''; echo 'Druecke ENTER zum Schliessen...'; read"
         )
         for terminal in ["xfce4-terminal", "x-terminal-emulator", "xterm"]:
             try:
-                subprocess.Popen([terminal, "-e", f"bash -c '{update_cmd}'"])
+                subprocess.Popen([terminal, "-e", "bash", "-c", update_cmd])
                 return
             except FileNotFoundError:
                 continue
@@ -726,11 +728,11 @@ class ArgonControlWindow(Gtk.Window):
                 )
             except Exception as e:
                 self.lid_status.set_markup(
-                    f"<span foreground='#FF4444'>❌ Fehler: {str(e)}</span>"
+                    f"<span foreground='#FF4444'>❌ Fehler: {html.escape(str(e))}</span>"
                 )
         except Exception as e:
             self.lid_status.set_markup(
-                f"<span foreground='#FF4444'>❌ Fehler: {str(e)}</span>"
+                f"<span foreground='#FF4444'>❌ Fehler: {html.escape(str(e))}</span>"
             )
 
     def _read_lock_on_resume(self):
@@ -790,12 +792,12 @@ class ArgonControlWindow(Gtk.Window):
             widget.set_active(not enable)
         except Exception as e:
             self.lock_status.set_markup(
-                f"<span foreground='#FF4444'>❌ Fehler: {str(e)}</span>"
+                f"<span foreground='#FF4444'>❌ Fehler: {html.escape(str(e))}</span>"
             )
             widget.set_active(not enable)
         except Exception as e:
             self.lock_status.set_markup(
-                f"<span foreground='#FF4444'>❌ Fehler: {str(e)}</span>"
+                f"<span foreground='#FF4444'>❌ Fehler: {html.escape(str(e))}</span>"
             )
             widget.set_active(not enable)
 
@@ -906,7 +908,7 @@ class ArgonControlWindow(Gtk.Window):
 
             # Tastaturbeleuchtung synchronisieren
             kbd = data.get("kbd_backlight", False)
-            if kbd != self.kbd_switch.get_active():
+            if hasattr(self, "kbd_switch") and kbd != self.kbd_switch.get_active():
                 self.kbd_switch.set_active(kbd)
                 self._update_kbd_label()
 
