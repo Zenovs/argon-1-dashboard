@@ -98,23 +98,25 @@ else
 fi
 
 GAP="  "
+IC="foreground='${WHITE}' rise='0'"
+TX="foreground='${WHITE}' rise='0'"
 
 # Icons weiss (Unicode, kein Emoji)
-ICON_BATT="<span foreground='${WHITE}'>&#x25A0;</span>${GAP}"
-ICON_TEMP="<span foreground='${WHITE}'>&#x25B2;</span>${GAP}"
-ICON_FAN="<span foreground='${WHITE}'>&#x21BA;</span>${GAP}"
+ICON_BATT="<span ${IC}>&#x25A0;</span>${GAP}"
+ICON_TEMP="<span ${IC}>&#x25B2;</span>${GAP}"
+ICON_FAN="<span ${IC}>&#x21BA;</span>${GAP}"
 
-# Batterie-Bereich (vertikal zentriert via baseline-Ausrichtung)
-BATT_PART="${ICON_BATT}<span foreground='${WHITE}'>${BATT_TEXT}</span>"
+# Batterie-Bereich
+BATT_PART="${ICON_BATT}<span ${TX}>${BATT_TEXT}</span>"
 if [ -n "$CHARGE_SPAN" ]; then
-    BATT_PART="${BATT_PART} <span foreground='${WHITE}'>&#x2B06;</span>"
+    BATT_PART="${BATT_PART} <span ${IC}>&#x2B06;</span>"
 fi
 if [ -n "$TIME_TEXT" ]; then
-    BATT_PART="${BATT_PART}${SEP}<span foreground='${WHITE}'>${TIME_TEXT}</span>"
+    BATT_PART="${BATT_PART}${SEP}<span ${TX}>${TIME_TEXT}</span>"
 fi
 
-# Ausgabe — span um alles fuer vertikale Zentrierung
-OUTPUT="${BATT_PART}${SEP}${ICON_TEMP}<span foreground='${WHITE}'>${TEMP_TEXT}</span>${SEP}${ICON_FAN}<span foreground='${WHITE}'>${FAN_TEXT}</span>"
-echo "<txt><span rise='0' baseline_shift='0'>${OUTPUT}</span>   </txt>"
+# Ausgabe — line_height='1' verhindert extra vertikalen Versatz
+OUTPUT="${BATT_PART}${SEP}${ICON_TEMP}<span ${TX}>${TEMP_TEXT}</span>${SEP}${ICON_FAN}<span ${TX}>${FAN_TEXT}</span>"
+echo "<txt><span line_height='1'>${OUTPUT}</span>   </txt>"
 echo "<txtclick>python3 /usr/local/bin/argon_control.py &</txtclick>"
 echo "<tool>Klicken fuer mehr Infos und Steuerung</tool>"
