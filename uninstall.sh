@@ -37,19 +37,31 @@ if [ "$CONFIRM" != "j" ] && [ "$CONFIRM" != "J" ]; then
     exit 0
 fi
 
-# Service stoppen und deaktivieren
-echo -e "${YELLOW}[1/4] Stoppe und deaktiviere Service...${NC}"
+# Root-Service stoppen und deaktivieren
+echo -e "${YELLOW}[1/4] Stoppe und deaktiviere Services...${NC}"
 systemctl stop argon-dashboard.service 2>/dev/null || true
 systemctl disable argon-dashboard.service 2>/dev/null || true
 rm -f /etc/systemd/system/argon-dashboard.service
 systemctl daemon-reload
-echo "  → Service entfernt ✓"
+echo "  → argon-dashboard.service entfernt ✓"
+
+# User-Service (Fn-Hotkeys) stoppen und deaktivieren
+USER_ID=$(id -u "$USER_NAME")
+sudo -u "$USER_NAME" XDG_RUNTIME_DIR="/run/user/${USER_ID}" \
+    systemctl --user stop argonhotkeys.service 2>/dev/null || true
+sudo -u "$USER_NAME" XDG_RUNTIME_DIR="/run/user/${USER_ID}" \
+    systemctl --user disable argonhotkeys.service 2>/dev/null || true
+rm -f "${USER_HOME}/.config/systemd/user/argonhotkeys.service"
+sudo -u "$USER_NAME" XDG_RUNTIME_DIR="/run/user/${USER_ID}" \
+    systemctl --user daemon-reload 2>/dev/null || true
+echo "  → argonhotkeys.service entfernt ✓"
 
 # Dateien entfernen
 echo -e "${YELLOW}[2/4] Entferne Dateien...${NC}"
 rm -f /usr/local/bin/argon_daemon.py
 rm -f /usr/local/bin/argon_panel.sh
 rm -f /usr/local/bin/argon_control.py
+rm -f /usr/local/bin/argon_hotkeys.py
 rm -f /tmp/argon_dashboard_status
 rm -f /tmp/argon_dashboard_status.tmp
 rm -f /tmp/argon_dashboard_control

@@ -41,7 +41,7 @@ if ! id "$USER_NAME" &>/dev/null; then
 fi
 
 # ── Abhaengigkeiten installieren ────────────────────────────
-echo -e "${YELLOW}[1/6] Installiere Abhaengigkeiten...${NC}"
+echo -e "${YELLOW}[1/9] Installiere Abhaengigkeiten...${NC}"
 apt-get update -qq 2>/dev/null || true
 
 # smbus2 installieren
@@ -50,6 +50,14 @@ if ! python3 -c "import smbus2" 2>/dev/null; then
     pip3 install smbus2 --break-system-packages 2>/dev/null || pip3 install smbus2
 else
     echo "  → smbus2 bereits installiert ✓"
+fi
+
+# evdev installieren (Fn-Hotkeys)
+if ! python3 -c "import evdev" 2>/dev/null; then
+    echo "  → Installiere evdev..."
+    pip3 install evdev --break-system-packages 2>/dev/null || pip3 install evdev
+else
+    echo "  → evdev bereits installiert ✓"
 fi
 
 # i2c-tools pruefen
@@ -83,7 +91,7 @@ if ! groups "$USER_NAME" | grep -q "\bi2c\b"; then
 fi
 
 # ── Luefter-Konfiguration erstellen ──────────────────────────
-echo -e "${YELLOW}[2/8] Erstelle Luefter-Konfiguration...${NC}"
+echo -e "${YELLOW}[2/9] Erstelle Luefter-Konfiguration...${NC}"
 mkdir -p /etc/argon
 if [ ! -f /etc/argon/fan_config.json ]; then
     cp "${SCRIPT_DIR}/src/fan_config.json" /etc/argon/fan_config.json
@@ -95,17 +103,17 @@ else
 fi
 
 # ── Dateien kopieren ────────────────────────────────────────
-echo -e "${YELLOW}[3/8] Kopiere Daemon-Skript...${NC}"
+echo -e "${YELLOW}[3/9] Kopiere Daemon-Skript...${NC}"
 cp "${SCRIPT_DIR}/src/argon_daemon.py" /usr/local/bin/argon_daemon.py
 chmod 755 /usr/local/bin/argon_daemon.py
 echo "  → /usr/local/bin/argon_daemon.py ✓"
 
-echo -e "${YELLOW}[4/8] Kopiere Panel-Applet...${NC}"
+echo -e "${YELLOW}[4/9] Kopiere Panel-Applet...${NC}"
 cp "${SCRIPT_DIR}/src/argon_panel.sh" /usr/local/bin/argon_panel.sh
 chmod 755 /usr/local/bin/argon_panel.sh
 echo "  → /usr/local/bin/argon_panel.sh ✓"
 
-echo -e "${YELLOW}[5/8] Kopiere Control-Panel...${NC}"
+echo -e "${YELLOW}[5/9] Kopiere Control-Panel...${NC}"
 cp "${SCRIPT_DIR}/src/argon_control.py" /usr/local/bin/argon_control.py
 chmod 755 /usr/local/bin/argon_control.py
 echo "  → /usr/local/bin/argon_control.py ✓"
@@ -114,16 +122,31 @@ cp "${SCRIPT_DIR}/src/argon_hotkeys.py" /usr/local/bin/argon_hotkeys.py
 chmod 755 /usr/local/bin/argon_hotkeys.py
 echo "  → /usr/local/bin/argon_hotkeys.py ✓"
 
-# ── Systemd-Service einrichten ──────────────────────────────
-echo -e "${YELLOW}[6/8] Richte Systemd-Service ein...${NC}"
+# ── Systemd Root-Service einrichten ─────────────────────────
+echo -e "${YELLOW}[6/9] Richte Systemd Root-Service ein...${NC}"
 cp "${SCRIPT_DIR}/src/argon-dashboard.service" /etc/systemd/system/argon-dashboard.service
 systemctl daemon-reload
 systemctl enable argon-dashboard.service
 systemctl restart argon-dashboard.service
 echo "  → argon-dashboard.service aktiviert und gestartet ✓"
 
+# ── Systemd User-Service (Fn-Hotkeys) einrichten ────────────
+echo -e "${YELLOW}[7/9] Richte Hotkey User-Service ein...${NC}"
+USER_SYSTEMD_DIR="${USER_HOME}/.config/systemd/user"
+mkdir -p "$USER_SYSTEMD_DIR"
+cp "${SCRIPT_DIR}/src/argonhotkeys.service" "${USER_SYSTEMD_DIR}/argonhotkeys.service"
+chown -R "${USER_NAME}:${USER_NAME}" "${USER_HOME}/.config/systemd"
+USER_ID=$(id -u "$USER_NAME")
+sudo -u "$USER_NAME" XDG_RUNTIME_DIR="/run/user/${USER_ID}" \
+    systemctl --user daemon-reload 2>/dev/null || true
+sudo -u "$USER_NAME" XDG_RUNTIME_DIR="/run/user/${USER_ID}" \
+    systemctl --user enable argonhotkeys.service 2>/dev/null || true
+sudo -u "$USER_NAME" XDG_RUNTIME_DIR="/run/user/${USER_ID}" \
+    systemctl --user restart argonhotkeys.service 2>/dev/null || true
+echo "  → argonhotkeys.service aktiviert und gestartet ✓"
+
 # ── Genmon-Plugin zur XFCE-Taskleiste hinzufuegen ──────────
-echo -e "${YELLOW}[7/8] Konfiguriere XFCE-Panel Genmon-Plugin...${NC}"
+echo -e "${YELLOW}[8/9] Konfiguriere XFCE-Panel Genmon-Plugin...${NC}"
 
 # xfconf-query muss als User ausgefuehrt werden
 if command -v xfconf-query &>/dev/null; then
@@ -201,7 +224,7 @@ else
 fi
 
 # ── Abschluss ───────────────────────────────────────────────
-echo -e "${YELLOW}[8/8] Pruefe Installation...${NC}"
+echo -e "${YELLOW}[9/9] Pruefe Installation...${NC}"
 sleep 2
 
 if systemctl is-active --quiet argon-dashboard.service; then

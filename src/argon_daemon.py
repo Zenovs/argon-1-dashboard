@@ -12,6 +12,7 @@ Autor: zenovs
 Lizenz: MIT
 """
 
+import glob
 import json
 import signal
 import sys
@@ -35,10 +36,18 @@ STATUS_FILE = "/tmp/argon_dashboard_status"
 CONTROL_FILE = "/tmp/argon_dashboard_control"
 POLL_INTERVAL = 2  # Sekunden
 
-# Luefter-Hardware-Pfade
-FAN_RPM_PATH = "/sys/class/hwmon/hwmon3/fan1_input"
-FAN_PWM_PATH = "/sys/class/hwmon/hwmon3/pwm1"
-FAN_PWM_ENABLE_PATH = "/sys/class/hwmon/hwmon3/pwm1_enable"
+# Luefter-Hardware-Pfade (dynamisch ermittelt beim Start)
+def _find_fan_hwmon():
+    """Sucht hwmon-Pfad mit fan1_input (Luefter-Controller)."""
+    for path in sorted(glob.glob("/sys/class/hwmon/hwmon*")):
+        if os.path.exists(os.path.join(path, "fan1_input")):
+            return path
+    return "/sys/class/hwmon/hwmon3"  # Fallback
+
+_HWMON = _find_fan_hwmon()
+FAN_RPM_PATH = f"{_HWMON}/fan1_input"
+FAN_PWM_PATH = f"{_HWMON}/pwm1"
+FAN_PWM_ENABLE_PATH = f"{_HWMON}/pwm1_enable"
 
 # Tastaturbeleuchtung
 KBD_BACKLIGHT_PATH = "/sys/class/leds/default-on/brightness"
@@ -233,7 +242,7 @@ def read_cpu_temp():
 
 
 def read_fan_rpm():
-    """Liest Luefter-RPM aus /sys/class/hwmon/hwmon3/fan1_input."""
+    """Liest Luefter-RPM aus dem erkannten hwmon-Pfad."""
     try:
         with open(FAN_RPM_PATH, "r") as f:
             return int(f.read().strip())
@@ -243,7 +252,7 @@ def read_fan_rpm():
 
 
 def write_fan_pwm(pwm_value):
-    """Schreibt PWM-Wert (0-255) nach /sys/class/hwmon/hwmon3/pwm1."""
+    """Schreibt PWM-Wert (0-255) in den erkannten hwmon-Pfad."""
     pwm_value = max(0, min(255, int(pwm_value)))
     try:
         # Sicherstellen dass PWM-Modus aktiv ist (1 = manuell)
@@ -463,7 +472,7 @@ def main():
 
     print("Argon Dashboard Daemon gestartet.")
     print(f"I2C Bus: {I2C_BUS}, Batterie-Adresse: {hex(BATTERY_ADDR)}")
-    print(f"Luefter PWM: {FAN_PWM_PATH}")
+    print(f"Luefter hwmon: {_HWMON} (fan1_input, pwm1)")
     print(f"Tastaturbeleuchtung: {KBD_BACKLIGHT_PATH}")
     print(f"Status-Datei: {STATUS_FILE}")
     print(f"Steuer-Datei: {CONTROL_FILE}")
