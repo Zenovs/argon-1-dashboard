@@ -98,8 +98,8 @@ else
 fi
 
 GAP="  "
-IC="foreground='${WHITE}' rise='0'"
-TX="foreground='${WHITE}' rise='0'"
+IC="foreground='${WHITE}'"
+TX="foreground='${WHITE}'"
 
 # Icons weiss (Unicode, kein Emoji)
 ICON_BATT="<span ${IC}>&#x25A0;</span>${GAP}"
@@ -115,8 +115,8 @@ if [ -n "$TIME_TEXT" ]; then
     BATT_PART="${BATT_PART}${SEP}<span ${TX}>${TIME_TEXT}</span>"
 fi
 
-# Ausgabe — line_height='1' verhindert extra vertikalen Versatz
+# Ausgabe — kein line_height, GTK zentriert den Label-Inhalt automatisch vertikal
 OUTPUT="${BATT_PART}${SEP}${ICON_TEMP}<span ${TX}>${TEMP_TEXT}</span>${SEP}${ICON_FAN}<span ${TX}>${FAN_TEXT}</span>"
-echo "<txt><span line_height='1'>${OUTPUT}</span>   </txt>"
+echo "<txt>${OUTPUT}   </txt>"
 echo "<txtclick>python3 /usr/local/bin/argon_control.py &</txtclick>"
 echo "<tool>Klicken fuer mehr Infos und Steuerung</tool>"
