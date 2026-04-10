@@ -12,9 +12,11 @@ Autor: zenovs
 Lizenz: MIT
 """
 
+import fcntl
 import html
 import json
 import os
+import shutil
 import subprocess
 import sys
 import time
@@ -22,7 +24,7 @@ import time
 try:
     import gi
     gi.require_version('Gtk', '3.0')
-    from gi.repository import Gtk, GLib, Pango
+    from gi.repository import Gtk, GLib
 except Exception:
     print("FEHLER: GTK3 nicht verfuegbar. Bitte installieren:", file=sys.stderr)
     print("  sudo apt install python3-gi gir1.2-gtk-3.0", file=sys.stderr)
@@ -757,7 +759,6 @@ class ArgonControlWindow(Gtk.Window):
             # Direkt versuchen (falls root)
             try:
                 if enable:
-                    import shutil
                     os.makedirs(os.path.dirname(LOCK_HOOK_PATH), exist_ok=True)
                     shutil.move(tmp_path, LOCK_HOOK_PATH)
                     os.chmod(LOCK_HOOK_PATH, 0o755)
@@ -932,7 +933,6 @@ LOCK_FILE = "/tmp/argon_control.lock"
 
 def main():
     # Sicherstellen dass nur eine Instanz laeuft
-    import fcntl
     lock_fd = open(LOCK_FILE, "w")
     try:
         fcntl.flock(lock_fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
