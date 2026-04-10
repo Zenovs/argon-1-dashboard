@@ -42,6 +42,7 @@ def _find_fan_hwmon():
     for path in sorted(glob.glob("/sys/class/hwmon/hwmon*")):
         if os.path.exists(os.path.join(path, "fan1_input")):
             return path
+    print("WARNUNG: Kein hwmon mit fan1_input gefunden, verwende Fallback /sys/class/hwmon/hwmon3", file=sys.stderr)
     return "/sys/class/hwmon/hwmon3"  # Fallback
 
 _HWMON = _find_fan_hwmon()

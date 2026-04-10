@@ -87,16 +87,17 @@ if command -v xfconf-query &>/dev/null; then
             xfconf-query -c xfce4-panel -p /panels/panel-1/plugin-ids 2>/dev/null || echo "")
         
         if [ -n "$CURRENT_PLUGINS" ]; then
-            PLUGIN_ARGS=""
+            # Plugin-IDs als Bash-Array zusammenbauen (kein eval noetig)
+            PLUGIN_ARGS=()
             for pid in $(echo "$CURRENT_PLUGINS" | tr '\n' ' '); do
                 if [[ "$pid" =~ ^[0-9]+$ ]] && [ "$pid" != "$PLUGIN_ID" ]; then
-                    PLUGIN_ARGS="$PLUGIN_ARGS -t int -s $pid"
+                    PLUGIN_ARGS+=(-t int -s "$pid")
                 fi
             done
-            
-            if [ -n "$PLUGIN_ARGS" ]; then
-                eval sudo -u "$USER_NAME" DISPLAY=:0 DBUS_SESSION_BUS_ADDRESS="unix:path=/run/user/\$(id -u $USER_NAME)/bus" \
-                    xfconf-query -c xfce4-panel -p /panels/panel-1/plugin-ids --create -a $PLUGIN_ARGS 2>/dev/null || true
+
+            if [ "${#PLUGIN_ARGS[@]}" -gt 0 ]; then
+                sudo -u "$USER_NAME" DISPLAY=:0 DBUS_SESSION_BUS_ADDRESS="unix:path=/run/user/$(id -u $USER_NAME)/bus" \
+                    xfconf-query -c xfce4-panel -p /panels/panel-1/plugin-ids --create -a "${PLUGIN_ARGS[@]}" 2>/dev/null || true
             fi
         fi
         
