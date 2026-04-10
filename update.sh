@@ -103,10 +103,11 @@ if [ -n "$REAL_USER" ]; then
     fetch_file "src/argonhotkeys.service" "${USER_SERVICE_DIR}/argonhotkeys.service" 644
     chown -R "${REAL_USER}:${REAL_USER}" "${USER_SERVICE_DIR}"
     # Evdev installieren falls fehlend
-    pip3 install evdev --quiet 2>/dev/null || true
-    sudo -u "$REAL_USER" systemctl --user daemon-reload 2>/dev/null || true
-    sudo -u "$REAL_USER" systemctl --user enable argonhotkeys.service 2>/dev/null || true
-    sudo -u "$REAL_USER" systemctl --user restart argonhotkeys.service 2>/dev/null || true
+    pip3 install evdev --quiet --break-system-packages 2>/dev/null || pip3 install evdev --quiet 2>/dev/null || true
+    REAL_USER_ID=$(id -u "$REAL_USER")
+    sudo -u "$REAL_USER" XDG_RUNTIME_DIR="/run/user/${REAL_USER_ID}" systemctl --user daemon-reload 2>/dev/null || true
+    sudo -u "$REAL_USER" XDG_RUNTIME_DIR="/run/user/${REAL_USER_ID}" systemctl --user enable argonhotkeys.service 2>/dev/null || true
+    sudo -u "$REAL_USER" XDG_RUNTIME_DIR="/run/user/${REAL_USER_ID}" systemctl --user restart argonhotkeys.service 2>/dev/null || true
     echo "  → argonhotkeys.service (Fn+F2/F3) ✓"
 fi
 

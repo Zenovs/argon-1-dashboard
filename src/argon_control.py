@@ -795,11 +795,6 @@ class ArgonControlWindow(Gtk.Window):
                 f"<span foreground='#FF4444'>❌ Fehler: {html.escape(str(e))}</span>"
             )
             widget.set_active(not enable)
-        except Exception as e:
-            self.lock_status.set_markup(
-                f"<span foreground='#FF4444'>❌ Fehler: {html.escape(str(e))}</span>"
-            )
-            widget.set_active(not enable)
 
     def _write_control(self):
         """Schreibt Steuerbefehle nach /tmp/argon_dashboard_control."""
@@ -932,12 +927,26 @@ class ArgonControlWindow(Gtk.Window):
         return True  # Timer weiterlaufen lassen
 
 
+LOCK_FILE = "/tmp/argon_control.lock"
+
+
 def main():
-    # Pruefen ob bereits eine Instanz laeuft
+    # Sicherstellen dass nur eine Instanz laeuft
+    import fcntl
+    lock_fd = open(LOCK_FILE, "w")
+    try:
+        fcntl.flock(lock_fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+    except BlockingIOError:
+        # Bereits eine Instanz aktiv — Fenster in den Vordergrund holen nicht moeglich
+        # ohne IPC, daher einfach beenden
+        print("Argon Control Panel laeuft bereits.", file=sys.stderr)
+        sys.exit(0)
+
     win = ArgonControlWindow()
     win.connect("destroy", Gtk.main_quit)
     win.show_all()
     Gtk.main()
+    lock_fd.close()
 
 
 if __name__ == "__main__":
