@@ -17,6 +17,7 @@ if [ -z "$USER_NAME" ] || [ "$USER_NAME" = "root" ]; then
     echo "Bitte ausfuehren mit: sudo bash uninstall.sh"
     exit 1
 fi
+USER_HOME="/home/${USER_NAME}"
 
 echo -e "${RED}╔══════════════════════════════════════════════╗${NC}"
 echo -e "${RED}║  Argon ONE UP CM5 Dashboard - Deinstallation ║${NC}"

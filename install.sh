@@ -76,6 +76,14 @@ else
     echo "  → xfce4-genmon-plugin bereits installiert ✓"
 fi
 
+# python3-gi / GTK3-Bindings pruefen und installieren
+if ! python3 -c "import gi" 2>/dev/null; then
+    echo "  → Installiere python3-gi (GTK3)..."
+    apt-get install -y python3-gi gir1.2-gtk-3.0
+else
+    echo "  → python3-gi bereits installiert ✓"
+fi
+
 # xfconf pruefen und installieren
 if ! command -v xfconf-query &>/dev/null; then
     echo "  → Installiere xfconf..."

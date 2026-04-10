@@ -431,6 +431,32 @@ class ArgonControlWindow(Gtk.Window):
         self.curve_status.set_halign(Gtk.Align.START)
         curve_box.pack_start(self.curve_status, False, False, 0)
 
+        # ── Tastaturbeleuchtung ──────────────────────────────
+        kbd_frame = Gtk.Frame()
+        kbd_frame.set_label_widget(self._section("input-keyboard-symbolic", "Tastaturbeleuchtung"))
+        kbd_frame.set_margin_top(6)
+        main_box.pack_start(kbd_frame, False, False, 0)
+
+        kbd_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=12)
+        kbd_box.set_margin_top(10)
+        kbd_box.set_margin_bottom(10)
+        kbd_box.set_margin_start(12)
+        kbd_box.set_margin_end(12)
+        kbd_frame.add(kbd_box)
+
+        kbd_lbl = Gtk.Label(label="Beleuchtung:")
+        kbd_box.pack_start(kbd_lbl, False, False, 0)
+
+        self.kbd_switch = Gtk.Switch()
+        self.kbd_switch.set_active(self.kbd_backlight)
+        self.kbd_switch.connect("notify::active", self.on_kbd_toggled)
+        kbd_box.pack_start(self.kbd_switch, False, False, 0)
+
+        self.kbd_status = Gtk.Label()
+        self.kbd_status.set_halign(Gtk.Align.START)
+        kbd_box.pack_start(self.kbd_status, False, False, 0)
+        self._update_kbd_label()
+
         # ── Deckel-Aktion ────────────────────────────────────
         lid_frame = Gtk.Frame()
         lid_frame.set_label_widget(self._section("system-suspend-symbolic", "Deckel zuklappen"))
