@@ -12,6 +12,7 @@ Autor: zenovs
 Lizenz: MIT
 """
 
+import collections
 import glob
 import json
 import os
@@ -70,7 +71,14 @@ DEFAULT_FAN_CURVE = [
 DDC_BUS = 14
 DDC_ADDR = 0x37
 
+# CW2217 Register
+CW2217_PROFILE_REG    = 0x10
+CW2217_SOCALERT_REG   = 0x0B
+CW2217_GPIOCONFIG_REG = 0x0A
+CW2217_ICSTATE_REG    = 0xA7
+
 # Globale Variablen
+HISTORY_SIZE = 1800  # 60 Minuten bei 2s Intervall
 running = True
 bus = None
 ddc_bus = None
@@ -80,8 +88,7 @@ current_kbd_backlight = False
 current_brightness = 80  # Prozent (10-100)
 fan_curve = list(DEFAULT_FAN_CURVE)  # Aktive Luefter-Kurve
 fan_config_mtime = 0  # Letzte Aenderungszeit der Konfigurationsdatei
-battery_history = []  # (timestamp, percent) fuer Zeitschätzung
-HISTORY_SIZE = 1800  # 60 Minuten bei 2s Intervall
+battery_history = collections.deque(maxlen=HISTORY_SIZE)  # (timestamp, percent)
 
 
 def signal_handler(signum, frame):
@@ -89,12 +96,6 @@ def signal_handler(signum, frame):
     global running
     print(f"Signal {signum} empfangen, beende Daemon...")
     running = False
-
-
-CW2217_PROFILE_REG = 0x10
-CW2217_SOCALERT_REG = 0x0B
-CW2217_GPIOCONFIG_REG = 0x0A
-CW2217_ICSTATE_REG = 0xA7
 
 # Batterie-Profil fuer Argon ONE UP CM5 (von offiziellem Argon-Script)
 BATTERY_PROFILE = [
@@ -145,7 +146,6 @@ def init_brightness():
     """Initialisiert DDC/CI Helligkeitssteuerung auf I2C Bus 14."""
     global ddc_bus, current_brightness
     try:
-        from smbus2 import i2c_msg as _i2c_msg
         ddc_bus = smbus2.SMBus(DDC_BUS)
         # Gespeicherten Wert laden und wiederherstellen
         saved = load_saved_brightness()
@@ -496,9 +496,6 @@ def main():
     # Initialen Zustand der Tastaturbeleuchtung lesen
     current_kbd_backlight = read_kbd_backlight()
 
-    # Luefter-Konfiguration laden
-    load_fan_config()
-
     try:
         while running:
             # Luefter-Konfiguration bei Aenderung neu laden
@@ -513,11 +510,9 @@ def main():
             cpu_temp = read_cpu_temp()
             fan_rpm = read_fan_rpm()
 
-            # Akkuverlauf aktualisieren
+            # Akkuverlauf aktualisieren (deque begrenzt automatisch auf HISTORY_SIZE)
             if battery_percent >= 0:
                 battery_history.append((time.time(), battery_percent))
-                if len(battery_history) > HISTORY_SIZE:
-                    battery_history.pop(0)
 
             battery_rate, time_remaining, battery_stable = estimate_battery_time(battery_percent)
 

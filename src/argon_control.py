@@ -200,7 +200,7 @@ class ArgonControlWindow(Gtk.Window):
 
     def __init__(self):
         super().__init__(title="Argon ONE UP — Dashboard")
-        self.set_default_size(440, 760)
+        self.set_default_size(440, 860)
         self.set_resizable(False)
         self.set_border_width(14)
         self.set_position(Gtk.WindowPosition.CENTER)
