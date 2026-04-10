@@ -1,100 +1,15 @@
-```
-╔═══════════════════════════════════════════════════════════════╗
-║                                                               ║
-║    █████╗ ██████╗  ██████╗  ██████╗ ███╗   ██╗               ║
-║   ██╔══██╗██╔══██╗██╔════╝ ██╔═══██╗████╗  ██║               ║
-║   ███████║██████╔╝██║  ███╗██║   ██║██╔██╗ ██║               ║
-║   ██╔══██║██╔══██╗██║   ██║██║   ██║██║╚██╗██║               ║
-║   ██║  ██║██║  ██║╚██████╔╝╚██████╔╝██║ ╚████║               ║
-║   ╚═╝  ╚═╝╚═╝  ╚═╝ ╚═════╝  ╚═════╝╚═╝  ╚═══╝               ║
-║                                                               ║
-║        D A S H B O A R D  ——  Argon ONE UP CM5               ║
-║                                                               ║
-╚═══════════════════════════════════════════════════════════════╝
-```
+# Argon ONE UP CM5 Dashboard
 
-Ein leichtgewichtiges Dashboard fuer den **Argon ONE UP CM5 Raspberry Pi Laptop** unter Kali Linux / XFCE.
+> Battery · Fan · Brightness · Temperature monitor and controller for the **Argon ONE UP CM5 Raspberry Pi laptop** running **Kali Linux / XFCE**.
 
-Zeigt **Batterie**, **CPU-Temperatur** und **Luefter** in der XFCE-Taskleiste. Steuerung von **Luefter**, **Bildschirmhelligkeit** und **Tastaturbeleuchtung** im GTK3-Control-Panel.
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+[![Platform](https://img.shields.io/badge/platform-Raspberry%20Pi%20CM5-red.svg)](https://www.raspberrypi.com/products/compute-module-5/)
+[![OS](https://img.shields.io/badge/OS-Kali%20Linux%20XFCE-557C94.svg)](https://www.kali.org/)
+[![Python](https://img.shields.io/badge/python-3.x-green.svg)](https://www.python.org/)
 
 ---
 
-## ✨ Features
-
-- 🔋 **Batterie** mit Prozent, Lade-/Entladestatus und Restzeit
-- 🌡️ **CPU-Temperatur** mit Farbcodierung
-- 🌀 **Luefter** mit RPM und Geschwindigkeit
-- ☀️ **Bildschirmhelligkeit** per Slider oder **Fn+F2/F3** Tasten
-- 🔧 **Lueftersteuerung** (Auto/Manuell) mit konfigurierbarer Kurve
-- 💡 **Tastaturbeleuchtung** Ein/Aus
-- 🔌 **Lade-Erkennung** direkt vom CW2217 Chip (Register 0x0E)
-- ⚡ **Leichtgewichtig**: Minimaler Ressourcenverbrauch
-- 🚀 **Auto-Start**: Startet automatisch beim Booten
-
-### Farbcodierung
-
-| Wert | Batterie | CPU-Temperatur | Luefter |
-|------|----------|----------------|---------|
-| 🟢 Gruen | ≥ 50% | ≤ 60°C | < 50% |
-| 🟠 Orange | 20-49% | 61-70°C | 50-74% |
-| 🔴 Rot | < 20% | > 70°C | ≥ 75% |
-
-### Automatische Lueftersteuerung (konfigurierbar)
-
-Die Standard-Luefter-Kurve verwendet lineare Interpolation zwischen den Punkten:
-
-| CPU-Temperatur | Luefter-Geschwindigkeit |
-|---------------|------------------------|
-| ≤ 50°C | 0% (Aus) |
-| 55°C | 30% |
-| 60°C | 50% |
-| 65°C | 75% |
-| ≥ 70°C | 100% |
-
-Zwischen den Punkten wird linear interpoliert (z.B. bei 57°C → ~40%).
-
-#### Luefter-Kurve konfigurieren
-
-Die Kurve ist konfigurierbar ueber `/etc/argon/fan_config.json`:
-
-```json
-{
-    "fan_curve": [
-        {"temp": 50, "speed": 0},
-        {"temp": 55, "speed": 30},
-        {"temp": 60, "speed": 50},
-        {"temp": 65, "speed": 75},
-        {"temp": 70, "speed": 100}
-    ]
-}
-```
-
-**Konfiguration aendern:**
-- **GTK Control-Panel**: Klick auf Panel-Applet → Bereich "Luefter-Kurve konfigurieren"
-- **Manuell**: `/etc/argon/fan_config.json` editieren (als root)
-- Der Daemon laedt Aenderungen automatisch (kein Neustart noetig)
-
-**Regeln:**
-- Temperaturen muessen aufsteigend sortiert sein
-- Luefter-Geschwindigkeit: 0-100%
-- Mindestens 2 Punkte erforderlich
-- Bei ungueliger Konfiguration wird die Standard-Kurve verwendet
-
----
-
-## 📋 Voraussetzungen
-
-- Raspberry Pi CM5 mit Argon ONE UP Gehaeuse
-- Kali Linux mit XFCE Desktop
-- I2C aktiviert (`raspi-config` → Interface Options → I2C)
-- XFCE Genmon Plugin (`sudo apt install xfce4-genmon-plugin`)
-- GTK3 fuer Control-Panel (`sudo apt install python3-gi gir1.2-gtk-3.0`)
-
----
-
-## 🚀 Installation
-
-### 1-Befehl-Installation
+## One-command install
 
 ```bash
 git clone https://github.com/Zenovs/argon-1-dashboard.git
@@ -102,109 +17,143 @@ cd argon-1-dashboard
 sudo bash install.sh
 ```
 
-### Was passiert bei der Installation?
-
-1. ✅ `smbus2` Python-Paket wird installiert
-2. ✅ Luefter-Konfiguration wird erstellt (`/etc/argon/fan_config.json`)
-3. ✅ Daemon-Skript wird nach `/usr/local/bin/` kopiert
-4. ✅ Panel-Applet wird nach `/usr/local/bin/` kopiert
-5. ✅ Control-Panel wird nach `/usr/local/bin/` kopiert
-6. ✅ Systemd-Service wird eingerichtet und gestartet (als root)
-7. ✅ Genmon-Plugin wird automatisch zur Taskleiste hinzugefuegt
-
----
-
-## 🔄 Update
+Or without cloning:
 
 ```bash
-cd argon-1-dashboard
-sudo bash update.sh
+curl -fsSL https://raw.githubusercontent.com/Zenovs/argon-1-dashboard/main/update.sh | sudo bash
 ```
 
-Das Update-Skript:
-- Pullt die neuesten Aenderungen von GitHub
-- Aktualisiert alle Dateien (inkl. Control-Panel)
-- Startet den Daemon neu
+---
+
+## What it does
+
+A lightweight XFCE panel applet + GTK3 control panel that monitors and controls the Argon ONE UP CM5 laptop hardware:
+
+| Feature | Details |
+|---|---|
+| 🔋 Battery | Percentage, charge/discharge status, time remaining (via CW2217 chip) |
+| 🌡 CPU Temperature | Live reading with color-coded warnings |
+| 🌀 Fan | RPM display, auto/manual mode, configurable temperature curve |
+| ☀️ Screen Brightness | Slider + **Fn+F2/F3** hotkeys (via DDC/CI on I2C bus 14) |
+| 💡 Keyboard Backlight | On/Off toggle |
+| 🖥 Panel Applet | XFCE Genmon plugin showing all values in the taskbar |
 
 ---
 
-## 🗑️ Deinstallation
+## Screenshots
+
+**Panel applet** (XFCE taskbar):
+```
+■ 72%  ⬆  |  1:23h  |  ▲ 44°C  |  ↺ 40%
+```
+
+**Control panel** (GTK3, dark theme):
+- Status overview (battery, temperature, fan, charge state, remaining time)
+- Brightness slider (10–100%, synced with Fn keys)
+- Fan control (Auto / Manual + configurable curve)
+- Keyboard backlight toggle
+- Lid action selector (suspend / hibernate / ignore)
+- Screen lock on resume toggle
+- One-click update button
+
+---
+
+## Requirements
+
+- **Hardware**: Raspberry Pi CM5 in an Argon ONE UP enclosure
+- **OS**: Kali Linux (or any Debian-based distro) with XFCE desktop
+- **I2C**: Enabled via `raspi-config` → Interface Options → I2C
+- **Packages** (installed automatically):
+  - `python3-smbus2` / `smbus2`
+  - `xfce4-genmon-plugin`
+  - `python3-gi` (GTK3 bindings)
+  - `evdev` (hotkey daemon)
+  - `i2c-tools`
+
+---
+
+## Installation
 
 ```bash
+git clone https://github.com/Zenovs/argon-1-dashboard.git
 cd argon-1-dashboard
+sudo bash install.sh
+```
+
+The install script automatically:
+1. Installs all dependencies (`smbus2`, `evdev`, `xfce4-genmon-plugin`)
+2. Copies scripts to `/usr/local/bin/`
+3. Creates fan config at `/etc/argon/fan_config.json`
+4. Sets up and starts the systemd root service (`argon-dashboard`)
+5. Sets up the systemd user service for Fn hotkeys (`argonhotkeys`)
+6. Adds the Genmon panel applet to the XFCE taskbar automatically
+
+## Update
+
+```bash
+sudo bash update.sh
+# or remotely:
+curl -fsSL https://raw.githubusercontent.com/Zenovs/argon-1-dashboard/main/update.sh | sudo bash
+```
+
+## Uninstall
+
+```bash
 sudo bash uninstall.sh
 ```
 
-Entfernt:
-- Systemd-Service
-- Alle installierten Dateien (inkl. Control-Panel)
-- Genmon-Plugin aus der Taskleiste
-- Temporaere Status- und Steuerdateien
+---
+
+## Fan curve configuration
+
+Edit `/etc/argon/fan_config.json` or use the control panel UI:
+
+```json
+{
+    "fan_curve": [
+        {"temp": 40, "speed": 0},
+        {"temp": 50, "speed": 40},
+        {"temp": 60, "speed": 70},
+        {"temp": 70, "speed": 100}
+    ]
+}
+```
+
+The daemon reloads this file automatically — no restart needed.
 
 ---
 
-## 🔧 Technische Details
-
-### Architektur
+## Architecture
 
 ```
-argon_daemon.py (Systemd-Service, root)
+argon_daemon.py  (systemd root service)
     │
-    ├── I2C Bus 1, Adresse 0x64 (CW2217 Batterie-Chip)
-    │   ├── Init: Batterie-Profil laden (76 Bytes, Register 0x10-0x59)
-    │   ├── Register 0x04 → Batterie-Prozent (0-100%)
-    │   └── Register 0x0E → Lade-Status (< 0x80 = laedt)
+    ├── I2C bus 1, address 0x64  →  CW2217 battery chip
+    │       register 0x04  →  battery percent
+    │       register 0x0E  →  charge status (< 0x80 = charging)
+    │       registers 0x10–0x59  →  76-byte battery profile (required for accurate SOC)
     │
-    ├── I2C Bus 14, Adresse 0x37 (DDC/CI Display)
-    │   └── VCP 0x10 → Bildschirmhelligkeit (10-100%)
+    ├── I2C bus 14, address 0x37  →  DDC/CI display brightness (VCP 0x10)
     │
-    ├── /sys/class/thermal/thermal_zone0/temp → CPU-Temp
-    ├── /sys/class/hwmon/hwmon3/fan1_input → Luefter-RPM
-    ├── /sys/class/hwmon/hwmon3/pwm1 → Luefter-PWM
-    ├── /sys/class/leds/default-on/brightness → Tastatur-LED
-    ├── /tmp/argon_dashboard_control ← Steuerbefehle
-    └── /tmp/argon_dashboard_status → JSON-Status
-                          │
-                argon_panel.sh (Genmon-Plugin, XFCE Taskleiste)
-                └── Klick → argon_control.py (GTK3 Control-Panel)
-                                │
-                                ├── Helligkeit-Slider
-                                ├── Luefter Auto/Manuell + Kurve
-                                └── Tastaturbeleuchtung
+    ├── /sys/class/thermal/thermal_zone0/temp  →  CPU temperature
+    ├── /sys/class/hwmon/hwmon3/fan1_input     →  fan RPM
+    ├── /sys/class/hwmon/hwmon3/pwm1           →  fan PWM control
+    ├── /sys/class/leds/default-on/brightness  →  keyboard backlight
+    │
+    ├── writes  →  /tmp/argon_dashboard_status   (JSON, every 2s)
+    └── reads   ←  /tmp/argon_dashboard_control  (JSON, commands from UI)
 
-argon_hotkeys.py (User-Systemd-Service)
-    └── evdev → KEY_BRIGHTNESSUP/DOWN (Fn+F3/F2) → Helligkeit
+argon_panel.sh      (XFCE Genmon plugin, reads status every 2s)
+    └── click  →  argon_control.py  (GTK3 control panel)
+
+argon_hotkeys.py    (systemd user service, evdev)
+    └── Fn+F2 / KEY_BRIGHTNESSDOWN  →  brightness -10%
+    └── Fn+F3 / KEY_BRIGHTNESSUP    →  brightness +10%
 ```
 
-### I2C-Kommunikation
+### IPC files
 
-**Batterie-Chip CW2217 (Bus 1, Adresse 0x64):**
-
-| Register | Beschreibung | Werte |
-|----------|-------------|-------|
-| `0x04` | Batterie-Prozent | 0-100% |
-| `0x0E` | Lade-Status | < 0x80 = Laedt, ≥ 0x80 = Entlaedt |
-| `0x08` | Modus-Register | 0x30=Restart, 0xF0=Sleep, 0x00=Aktiv |
-| `0x10-0x59` | Batterie-Profil | 76 Bytes (Argon ONE UP spezifisch) |
-
-**Display DDC/CI (Bus 14, Adresse 0x37):**
-
-| VCP Code | Beschreibung | Werte |
-|----------|-------------|-------|
-| `0x10` | Bildschirmhelligkeit | 10-100% |
-
-### Hardware-Schnittstellen
-
-| Pfad | Beschreibung | Zugriff |
-|------|-------------|---------|
-| `/sys/class/hwmon/hwmon3/fan1_input` | Luefter RPM | Lesen |
-| `/sys/class/hwmon/hwmon3/pwm1` | Luefter PWM (0-255) | Schreiben (root) |
-| `/sys/class/hwmon/hwmon3/pwm1_enable` | PWM-Modus | Schreiben (root) |
-| `/sys/class/leds/default-on/brightness` | Tastatur-LED (0/1) | Schreiben (root) |
-| `/etc/argon/fan_config.json` | Luefter-Kurve Konfiguration | Lesen (Daemon) / Schreiben (Control-Panel via pkexec) |
-
-### Status-Datei (`/tmp/argon_dashboard_status`)
-
+**`/tmp/argon_dashboard_status`** (written by daemon):
 ```json
 {
     "battery_percent": 85,
@@ -221,8 +170,7 @@ argon_hotkeys.py (User-Systemd-Service)
 }
 ```
 
-### Steuer-Datei (`/tmp/argon_dashboard_control`)
-
+**`/tmp/argon_dashboard_control`** (written by UI/hotkeys, read by daemon):
 ```json
 {
     "fan_mode": "auto",
@@ -234,133 +182,91 @@ argon_hotkeys.py (User-Systemd-Service)
 
 ---
 
-## 🎮 Bedienung
+## Troubleshooting
 
-### Panel-Applet
-- Zeigt: 🔋 Batterie | 🌡 Temperatur | 🌀 Luefter
-- **Klick** auf das Applet oeffnet das Control-Panel
-- **Hover** zeigt detaillierte Infos als Tooltip
-
-### Control-Panel (GTK3)
-- **☀ Bildschirmhelligkeit**: Slider 10-100% (sofort wirksam)
-- **Fn+F2 / Fn+F3**: Helligkeit -/+ direkt ueber Tastatur
-- **Luefter Auto-Modus**: Temperaturbasierte automatische Steuerung
-- **Luefter Manuell**: Slider fuer 0-100% manuelle Geschwindigkeit
-- **Luefter-Kurve konfigurieren**: 5 Temperatur-/Geschwindigkeitspunkte anpassbar
-- **Tastaturbeleuchtung**: Ein/Aus-Schalter
-
----
-
-## 🛠️ Troubleshooting
-
-### Daemon laeuft nicht
-
+### Daemon not running
 ```bash
-# Status pruefen
 sudo systemctl status argon-dashboard
-
-# Logs anzeigen
 sudo journalctl -u argon-dashboard -f
-
-# Manuell starten zum Testen
-sudo python3 /usr/local/bin/argon_daemon.py
 ```
 
-### I2C-Fehler
-
+### I2C errors
 ```bash
-# I2C pruefen
 ls /dev/i2c-*
-
-# Geraete scannen
-i2cdetect -y 1
-
-# Batterie-Register manuell lesen
-i2cget -y 1 0x64 0x04  # Batterie-Prozent
-i2cget -y 1 0x64 0x0e  # Lade-Status
+i2cdetect -y 1          # should show 0x64 (CW2217 battery)
+i2cdetect -y 14         # should show 0x37 (DDC display)
+i2cget -y 1 0x64 0x04   # battery percent
+i2cget -y 1 0x64 0x0e   # charge status
 ```
 
-### Luefter-Steuerung funktioniert nicht
-
+### Panel applet not showing
 ```bash
-# PWM-Pfade pruefen
-cat /sys/class/hwmon/hwmon3/fan1_input    # RPM lesen
-cat /sys/class/hwmon/hwmon3/pwm1          # PWM-Wert lesen
-cat /sys/class/hwmon/hwmon3/pwm1_enable   # PWM-Modus pruefen
-
-# Manuell testen (als root)
-echo 1 > /sys/class/hwmon/hwmon3/pwm1_enable
-echo 128 > /sys/class/hwmon/hwmon3/pwm1   # 50%
+sudo apt install xfce4-genmon-plugin
+# Then add manually: right-click taskbar → Panel → Add Items → Generic Monitor
+# Command: /usr/local/bin/argon_panel.sh  |  Interval: 2000ms
 ```
 
-### Tastaturbeleuchtung funktioniert nicht
-
+### Brightness not changing
 ```bash
-# Pfad pruefen
-cat /sys/class/leds/default-on/brightness
-
-# Manuell testen (als root)
-echo 1 > /sys/class/leds/default-on/brightness  # Ein
-echo 0 > /sys/class/leds/default-on/brightness  # Aus
+# Check service permissions (DeviceAllow=/dev/i2c-14 must be present)
+sudo systemctl cat argon-dashboard | grep DeviceAllow
+# Restart service after any service file change:
+sudo systemctl daemon-reload && sudo systemctl restart argon-dashboard
 ```
 
-### Panel-Applet wird nicht angezeigt
-
-1. Pruefen ob Genmon installiert ist:
-   ```bash
-   sudo apt install xfce4-genmon-plugin
-   ```
-2. Manuell hinzufuegen:
-   - Rechtsklick auf Taskleiste → Panel → Elemente hinzufuegen
-   - "Generischer Monitor" (Genmon) waehlen
-   - Befehl: `/usr/local/bin/argon_panel.sh`
-   - Aktualisierung: 2000 ms
-
-### Control-Panel oeffnet nicht
-
+### Control panel won't open
 ```bash
-# GTK3 pruefen
-python3 -c "import gi; gi.require_version('Gtk', '3.0')"
-
-# Manuell starten
 python3 /usr/local/bin/argon_control.py
+# Requires: python3-gi, gir1.2-gtk-3.0
+sudo apt install python3-gi gir1.2-gtk-3.0
 ```
 
 ---
 
-## 📁 Projektstruktur
+## File structure
 
 ```
-argon-dashboard/
-├── README.md              # Diese Dokumentation
-├── install.sh             # Installationsskript
-├── update.sh              # Update-Skript
-├── uninstall.sh           # Deinstallationsskript
-├── src/
-│   ├── argon_daemon.py        # Daemon (I2C Batterie + DDC Helligkeit + Luefter)
-│   ├── argon_panel.sh         # XFCE Genmon-Taskleisten-Applet
-│   ├── argon_control.py       # GTK3 Control-Panel
-│   ├── argon_hotkeys.py       # Fn+F2/F3 Helligkeits-Hotkeys (User-Service)
-│   ├── argon-dashboard.service  # Systemd Root-Service
-│   ├── argonhotkeys.service   # Systemd User-Service (Hotkeys)
-│   └── fan_config.json        # Standard Luefter-Kurve
-└── .gitignore
+argon-1-dashboard/
+├── install.sh                    # Installation script
+├── update.sh                     # Update script
+├── uninstall.sh                  # Uninstall script
+└── src/
+    ├── argon_daemon.py           # Root daemon (I2C + DDC + fan + battery)
+    ├── argon_panel.sh            # XFCE Genmon panel applet
+    ├── argon_control.py          # GTK3 control panel (dark theme)
+    ├── argon_hotkeys.py          # Fn key brightness hotkeys (user service)
+    ├── argon-dashboard.service   # systemd root service
+    ├── argonhotkeys.service      # systemd user service
+    └── fan_config.json           # Default fan curve
 ```
 
 ---
 
-## 📜 Lizenz
+## Tested on
 
-MIT License - Frei verwendbar und anpassbar.
+- Raspberry Pi CM5 8GB / 32GB eMMC
+- Argon ONE UP enclosure (v1)
+- Kali Linux 2024.x XFCE (64-bit ARM)
 
 ---
 
-## 🤝 Beitragen
+## Contributing
 
-Pull Requests und Issues sind willkommen!
+Issues and pull requests are welcome.
 
-1. Fork erstellen
-2. Feature-Branch: `git checkout -b feature/mein-feature`
-3. Commit: `git commit -m 'Neues Feature'`
-4. Push: `git push origin feature/mein-feature`
-5. Pull Request erstellen
+1. Fork the repo
+2. Create a feature branch: `git checkout -b feature/my-feature`
+3. Commit: `git commit -m 'Add my feature'`
+4. Push and open a pull request
+
+---
+
+## License
+
+MIT — free to use and adapt.
+
+---
+
+## Keywords
+
+`argon-one-up` `argon-one-up-cm5` `raspberry-pi-cm5` `raspberry-pi-laptop` `kali-linux` `xfce` `xfce-panel` `dashboard` `battery-monitor` `fan-control` `brightness-control` `ddc-ci` `cw2217` `i2c` `genmon` `gtk3` `systemd` `python3`
