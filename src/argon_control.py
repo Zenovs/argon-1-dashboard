@@ -32,6 +32,7 @@ except Exception:
 
 STATUS_FILE = "/tmp/argon_dashboard_status"
 CONTROL_FILE = "/tmp/argon_dashboard_control"
+LOCK_FILE = "/tmp/argon_control.lock"
 FAN_CONFIG_PATH = "/etc/argon/fan_config.json"
 LID_CONFIG_PATH = "/etc/systemd/logind.conf.d/argon-lid.conf"
 LOGIND_CONF_PATH = "/etc/systemd/logind.conf"
@@ -926,9 +927,6 @@ class ArgonControlWindow(Gtk.Window):
             self._updating = False
 
         return True  # Timer weiterlaufen lassen
-
-
-LOCK_FILE = "/tmp/argon_control.lock"
 
 
 def main():

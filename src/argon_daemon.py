@@ -14,10 +14,10 @@ Lizenz: MIT
 
 import glob
 import json
+import os
 import signal
 import sys
 import time
-import os
 
 try:
     import smbus2
