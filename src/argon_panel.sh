@@ -24,7 +24,7 @@ fi
 
 # JSON lesen
 eval "$(python3 << 'PYEOF'
-import json, sys
+import json, os, sys
 try:
     with open('/tmp/argon_dashboard_status') as f:
         d = json.load(f)
@@ -56,6 +56,18 @@ except Exception:
     print('FAN_SPEED=0')
     print('TIME_H=')
     print('TIME_M=')
+
+# Benachrichtigungs-Konfiguration lesen
+try:
+    notif_file = os.path.expanduser('~/.config/argon/notifications.json')
+    nd = json.load(open(notif_file))
+    bw = nd.get('battery_warning', False)
+    bt = int(nd.get('battery_threshold', 10))
+    print('BATT_WARN=' + ('true' if bw else 'false'))
+    print(f'BATT_THRESH={bt}')
+except Exception:
+    print('BATT_WARN=false')
+    print('BATT_THRESH=10')
 PYEOF
 )"
 
@@ -113,6 +125,20 @@ if [ -n "$CHARGE_SPAN" ]; then
 fi
 if [ -n "$TIME_TEXT" ]; then
     BATT_PART="${BATT_PART}${SEP}<span ${TX}>${TIME_TEXT}</span>"
+fi
+
+# Akku-Warnung (nur wenn aktiviert, nicht ladend, und Schwellenwert unterschritten)
+BATT_WARN_FLAG="/tmp/argon_batt_warned"
+if [ "$BATT_WARN" = "true" ] && [ "$CHARGING" != "true" ]; then
+    if [ "$BATTERY" -ge 0 ] 2>/dev/null && [ "$BATTERY" -le "$BATT_THRESH" ] 2>/dev/null; then
+        if [ ! -f "$BATT_WARN_FLAG" ]; then
+            notify-send -u critical -i battery-caution -t 0 \
+                "Akku-Warnung" "Nur noch ${BATTERY}% Akkukapazität!" 2>/dev/null || true
+            touch "$BATT_WARN_FLAG"
+        fi
+    elif [ "$BATTERY" -gt "$((BATT_THRESH + 5))" ] 2>/dev/null; then
+        rm -f "$BATT_WARN_FLAG"
+    fi
 fi
 
 # Ausgabe — kein line_height, GTK zentriert den Label-Inhalt automatisch vertikal

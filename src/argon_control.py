@@ -34,6 +34,7 @@ STATUS_FILE = "/tmp/argon_dashboard_status"
 CONTROL_FILE = "/tmp/argon_dashboard_control"
 LOCK_FILE = "/tmp/argon_control.lock"
 FAN_CONFIG_PATH = "/etc/argon/fan_config.json"
+NOTIF_CONFIG_PATH = os.path.expanduser("~/.config/argon/notifications.json")
 LID_CONFIG_PATH = "/etc/systemd/logind.conf.d/argon-lid.conf"
 LOGIND_CONF_PATH = "/etc/systemd/logind.conf"
 LOCK_HOOK_PATH = "/usr/lib/systemd/system-sleep/argon-lock-screen"
@@ -200,7 +201,7 @@ class ArgonControlWindow(Gtk.Window):
 
     def __init__(self):
         super().__init__(title="Argon ONE UP — Dashboard")
-        self.set_default_size(440, 860)
+        self.set_default_size(440, 1000)
         self.set_resizable(False)
         self.set_border_width(14)
         self.set_position(Gtk.WindowPosition.CENTER)
@@ -430,6 +431,48 @@ class ArgonControlWindow(Gtk.Window):
         self.curve_status = Gtk.Label()
         self.curve_status.set_halign(Gtk.Align.START)
         curve_box.pack_start(self.curve_status, False, False, 0)
+
+        # ── Benachrichtigungen ───────────────────────────────
+        notif_frame = Gtk.Frame()
+        notif_frame.set_label_widget(self._section("preferences-system-notifications-symbolic", "Benachrichtigungen"))
+        notif_frame.set_margin_top(6)
+        main_box.pack_start(notif_frame, False, False, 0)
+
+        notif_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=8)
+        notif_box.set_margin_top(10)
+        notif_box.set_margin_bottom(10)
+        notif_box.set_margin_start(12)
+        notif_box.set_margin_end(12)
+        notif_frame.add(notif_box)
+
+        notif_warn_enabled, notif_threshold = self._load_notif_config()
+
+        notif_row = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=10)
+        self.notif_check = Gtk.CheckButton(label="Akku-Warnung aktivieren")
+        self.notif_check.set_active(notif_warn_enabled)
+        notif_row.pack_start(self.notif_check, False, False, 0)
+        notif_box.pack_start(notif_row, False, False, 0)
+
+        thresh_row = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=10)
+        thresh_lbl = Gtk.Label(label="Warnen bei:")
+        thresh_row.pack_start(thresh_lbl, False, False, 0)
+        thresh_adj = Gtk.Adjustment(value=notif_threshold, lower=5, upper=50, step_increment=1, page_increment=5)
+        self.notif_threshold = Gtk.SpinButton(adjustment=thresh_adj, climb_rate=1, digits=0)
+        self.notif_threshold.set_size_request(80, -1)
+        thresh_row.pack_start(self.notif_threshold, False, False, 0)
+        thresh_row.pack_start(Gtk.Label(label="% Akkustand"), False, False, 0)
+        notif_box.pack_start(thresh_row, False, False, 0)
+
+        notif_save_btn = Gtk.Button()
+        notif_save_btn.set_image(Gtk.Image.new_from_icon_name("document-save-symbolic", Gtk.IconSize.BUTTON))
+        notif_save_btn.set_label("Speichern")
+        notif_save_btn.set_always_show_image(True)
+        notif_save_btn.connect("clicked", self.on_save_notif)
+        notif_box.pack_start(notif_save_btn, False, False, 0)
+
+        self.notif_status = Gtk.Label()
+        self.notif_status.set_halign(Gtk.Align.START)
+        notif_box.pack_start(self.notif_status, False, False, 0)
 
         # ── Tastaturbeleuchtung ──────────────────────────────
         kbd_frame = Gtk.Frame()
@@ -823,6 +866,38 @@ class ArgonControlWindow(Gtk.Window):
                 f"<span foreground='#FF4444'>❌ Fehler: {html.escape(str(e))}</span>"
             )
             widget.set_active(not enable)
+
+    def _load_notif_config(self):
+        """Laedt Benachrichtigungs-Einstellungen aus ~/.config/argon/notifications.json."""
+        try:
+            with open(NOTIF_CONFIG_PATH) as f:
+                data = json.load(f)
+            return bool(data.get("battery_warning", False)), int(data.get("battery_threshold", 10))
+        except Exception:
+            return False, 10
+
+    def on_save_notif(self, widget):
+        """Speichert Benachrichtigungs-Einstellungen."""
+        enabled = self.notif_check.get_active()
+        threshold = int(self.notif_threshold.get_value())
+        try:
+            os.makedirs(os.path.dirname(NOTIF_CONFIG_PATH), exist_ok=True)
+            tmp = NOTIF_CONFIG_PATH + ".tmp"
+            with open(tmp, "w") as f:
+                json.dump({"battery_warning": enabled, "battery_threshold": threshold}, f, indent=2)
+            os.replace(tmp, NOTIF_CONFIG_PATH)
+            # Flag zuruecksetzen damit Warnung neu ausgeloest werden kann
+            try:
+                os.remove("/tmp/argon_batt_warned")
+            except FileNotFoundError:
+                pass
+            self.notif_status.set_markup(
+                "<span foreground='#44CC44'>✅ Gespeichert!</span>"
+            )
+        except Exception as e:
+            self.notif_status.set_markup(
+                f"<span foreground='#FF4444'>❌ Fehler: {html.escape(str(e))}</span>"
+            )
 
     def _write_control(self):
         """Schreibt Steuerbefehle nach /tmp/argon_dashboard_control."""
