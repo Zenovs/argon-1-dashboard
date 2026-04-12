@@ -201,7 +201,7 @@ class ArgonControlWindow(Gtk.Window):
 
     def __init__(self):
         super().__init__(title="Argon ONE UP — Dashboard")
-        self.set_default_size(440, 1000)
+        self.set_default_size(880, 640)
         self.set_resizable(False)
         self.set_border_width(14)
         self.set_position(Gtk.WindowPosition.CENTER)
@@ -243,11 +243,27 @@ class ArgonControlWindow(Gtk.Window):
         sep = Gtk.Separator(orientation=Gtk.Orientation.HORIZONTAL)
         main_box.pack_start(sep, False, False, 0)
 
+        # ── Zwei-Spalten-Layout ──────────────────────────────
+        content_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=12)
+        content_box.set_margin_top(4)
+        main_box.pack_start(content_box, True, True, 0)
+
+        left_col = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=10)
+        left_col.set_hexpand(True)
+        content_box.pack_start(left_col, True, True, 0)
+
+        vsep = Gtk.Separator(orientation=Gtk.Orientation.VERTICAL)
+        content_box.pack_start(vsep, False, False, 0)
+
+        right_col = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=10)
+        right_col.set_hexpand(True)
+        content_box.pack_start(right_col, True, True, 0)
+
         # ── Status-Anzeige ───────────────────────────────────
         status_frame = Gtk.Frame()
         status_frame.set_label_widget(self._section("dialog-information-symbolic", "Status"))
         status_frame.set_margin_top(4)
-        main_box.pack_start(status_frame, False, False, 0)
+        left_col.pack_start(status_frame, False, False, 0)
 
         status_grid = Gtk.Grid()
         status_grid.set_column_spacing(14)
@@ -285,7 +301,7 @@ class ArgonControlWindow(Gtk.Window):
         bright_frame = Gtk.Frame()
         bright_frame.set_label_widget(self._section("display-brightness-symbolic", "Bildschirmhelligkeit"))
         bright_frame.set_margin_top(6)
-        main_box.pack_start(bright_frame, False, False, 0)
+        left_col.pack_start(bright_frame, False, False, 0)
 
         bright_outer = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=4)
         bright_outer.set_margin_top(8)
@@ -321,7 +337,7 @@ class ArgonControlWindow(Gtk.Window):
         fan_frame = Gtk.Frame()
         fan_frame.set_label_widget(self._section("system-run-symbolic", "Lueftersteuerung"))
         fan_frame.set_margin_top(6)
-        main_box.pack_start(fan_frame, False, False, 0)
+        left_col.pack_start(fan_frame, False, False, 0)
 
         fan_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=8)
         fan_box.set_margin_top(10)
@@ -373,7 +389,7 @@ class ArgonControlWindow(Gtk.Window):
         curve_frame = Gtk.Frame()
         curve_frame.set_label_widget(self._section("preferences-system-symbolic", "Luefter-Kurve"))
         curve_frame.set_margin_top(6)
-        main_box.pack_start(curve_frame, False, False, 0)
+        left_col.pack_start(curve_frame, False, False, 0)
 
         curve_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=6)
         curve_box.set_margin_top(10)
@@ -435,8 +451,8 @@ class ArgonControlWindow(Gtk.Window):
         # ── Benachrichtigungen ───────────────────────────────
         notif_frame = Gtk.Frame()
         notif_frame.set_label_widget(self._section("preferences-system-notifications-symbolic", "Benachrichtigungen"))
-        notif_frame.set_margin_top(6)
-        main_box.pack_start(notif_frame, False, False, 0)
+        notif_frame.set_margin_top(4)
+        right_col.pack_start(notif_frame, False, False, 0)
 
         notif_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=8)
         notif_box.set_margin_top(10)
@@ -478,7 +494,7 @@ class ArgonControlWindow(Gtk.Window):
         kbd_frame = Gtk.Frame()
         kbd_frame.set_label_widget(self._section("input-keyboard-symbolic", "Tastaturbeleuchtung"))
         kbd_frame.set_margin_top(6)
-        main_box.pack_start(kbd_frame, False, False, 0)
+        right_col.pack_start(kbd_frame, False, False, 0)
 
         kbd_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=12)
         kbd_box.set_margin_top(10)
@@ -504,7 +520,7 @@ class ArgonControlWindow(Gtk.Window):
         lid_frame = Gtk.Frame()
         lid_frame.set_label_widget(self._section("system-suspend-symbolic", "Deckel zuklappen"))
         lid_frame.set_margin_top(6)
-        main_box.pack_start(lid_frame, False, False, 0)
+        right_col.pack_start(lid_frame, False, False, 0)
 
         lid_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=8)
         lid_box.set_margin_top(10)
