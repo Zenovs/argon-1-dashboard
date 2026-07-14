@@ -259,7 +259,6 @@ print(f'    Batterie: {d.get(\"battery_percent\", \"?\")}%')
 print(f'    Laedt: {d.get(\"is_charging\", \"?\")}')
 print(f'    CPU-Temp: {d.get(\"cpu_temp\", \"?\")}°C')
 print(f'    Luefter: {d.get(\"fan_rpm\", \"?\")} RPM ({d.get(\"fan_speed\", \"?\")}%, {d.get(\"fan_mode\", \"?\")})')
-print(f'    Tastatur-LED: {d.get(\"kbd_backlight\", \"?\")}')
 " 2>/dev/null || echo "  → Status-Datei noch nicht bereit"
 else
     echo "  → Status-Datei wird in wenigen Sekunden erstellt..."

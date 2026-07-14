@@ -4,7 +4,7 @@
 Argon ONE UP CM5 Dashboard Daemon
 
 Liest Batterie-Status via I2C (Bus 1, Addr 0x64), CPU-Temperatur,
-Luefter-RPM und steuert Luefter (PWM) sowie Tastaturbeleuchtung.
+Luefter-RPM und steuert Luefter (PWM).
 Schreibt JSON-Status nach /tmp/argon_dashboard_status.
 Liest Steuerbefehle aus /tmp/argon_dashboard_control.
 
@@ -51,9 +51,6 @@ FAN_RPM_PATH = f"{_HWMON}/fan1_input"
 FAN_PWM_PATH = f"{_HWMON}/pwm1"
 FAN_PWM_ENABLE_PATH = f"{_HWMON}/pwm1_enable"
 
-# Tastaturbeleuchtung
-KBD_BACKLIGHT_PATH = "/sys/class/leds/default-on/brightness"
-
 # Luefter-Konfiguration
 FAN_CONFIG_PATH = "/etc/argon/fan_config.json"
 DISPLAY_CONFIG_PATH = "/etc/argon/display_config.json"
@@ -84,7 +81,6 @@ bus = None
 ddc_bus = None
 current_fan_mode = "auto"
 current_fan_speed = 0  # Prozent (0-100)
-current_kbd_backlight = False
 current_brightness = 80  # Prozent (10-100)
 fan_curve = list(DEFAULT_FAN_CURVE)  # Aktive Luefter-Kurve
 fan_config_mtime = 0  # Letzte Aenderungszeit der Konfigurationsdatei
@@ -377,29 +373,9 @@ def estimate_battery_time(current_pct):
     return rate, None, False
 
 
-def write_kbd_backlight(on):
-    """Setzt Tastaturbeleuchtung (0=aus, 1=ein)."""
-    try:
-        with open(KBD_BACKLIGHT_PATH, "w") as f:
-            f.write("1" if on else "0")
-    except PermissionError:
-        print(f"FEHLER: Keine Berechtigung fuer {KBD_BACKLIGHT_PATH}. Root-Rechte noetig!", file=sys.stderr)
-    except Exception as e:
-        print(f"WARNUNG: Tastaturbeleuchtung konnte nicht gesetzt werden: {e}", file=sys.stderr)
-
-
-def read_kbd_backlight():
-    """Liest aktuellen Zustand der Tastaturbeleuchtung."""
-    try:
-        with open(KBD_BACKLIGHT_PATH, "r") as f:
-            return int(f.read().strip()) > 0
-    except Exception:
-        return False
-
-
 def read_control_commands():
     """Liest Steuerbefehle aus /tmp/argon_dashboard_control."""
-    global current_fan_mode, current_fan_speed, current_kbd_backlight
+    global current_fan_mode, current_fan_speed
     try:
         if os.path.exists(CONTROL_FILE):
             with open(CONTROL_FILE, "r") as f:
@@ -414,15 +390,6 @@ def read_control_commands():
                 try:
                     speed = int(data["fan_speed"])
                     current_fan_speed = max(0, min(100, speed))
-                except (ValueError, TypeError):
-                    pass
-
-            if "kbd_backlight" in data:
-                try:
-                    new_state = bool(data["kbd_backlight"])
-                    if new_state != current_kbd_backlight:
-                        current_kbd_backlight = new_state
-                        write_kbd_backlight(current_kbd_backlight)
                 except (ValueError, TypeError):
                     pass
 
@@ -466,7 +433,7 @@ def cleanup():
 
 
 def main():
-    global bus, running, current_fan_mode, current_fan_speed, current_kbd_backlight
+    global bus, running, current_fan_mode, current_fan_speed
 
     signal.signal(signal.SIGTERM, signal_handler)
     signal.signal(signal.SIGINT, signal_handler)
@@ -474,7 +441,6 @@ def main():
     print("Argon Dashboard Daemon gestartet.")
     print(f"I2C Bus: {I2C_BUS}, Batterie-Adresse: {hex(BATTERY_ADDR)}")
     print(f"Luefter hwmon: {_HWMON} (fan1_input, pwm1)")
-    print(f"Tastaturbeleuchtung: {KBD_BACKLIGHT_PATH}")
     print(f"Status-Datei: {STATUS_FILE}")
     print(f"Steuer-Datei: {CONTROL_FILE}")
     print(f"Poll-Intervall: {POLL_INTERVAL}s")
@@ -492,9 +458,6 @@ def main():
 
     # DDC/CI Helligkeit initialisieren
     init_brightness()
-
-    # Initialen Zustand der Tastaturbeleuchtung lesen
-    current_kbd_backlight = read_kbd_backlight()
 
     try:
         while running:
@@ -535,7 +498,6 @@ def main():
                 "fan_rpm": fan_rpm,
                 "fan_speed": current_fan_speed,
                 "fan_mode": current_fan_mode,
-                "kbd_backlight": current_kbd_backlight,
                 "brightness": current_brightness,
                 "timestamp": time.time()
             }

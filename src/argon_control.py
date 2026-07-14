@@ -6,7 +6,6 @@ Argon ONE UP CM5 Dashboard - GTK3 Control Panel
 Zeigt Status und ermoeglicht Steuerung von:
 - Luefter (Auto/Manuell + Slider)
 - Luefter-Kurve (konfigurierbar)
-- Tastaturbeleuchtung (Ein/Aus)
 
 Autor: zenovs
 Lizenz: MIT
@@ -209,10 +208,8 @@ class ArgonControlWindow(Gtk.Window):
         # Aktueller Zustand
         self.fan_mode = "auto"
         self.fan_speed = 0
-        self.kbd_backlight = False
         self._updating = False
         self._bright_changed_at = 0  # Zeitstempel der letzten Nutzer-Aenderung
-        self._kbd_changed_at = 0  # Zeitstempel der letzten Nutzer-Aenderung
 
         # Aktuelle Helligkeit aus Status-Datei lesen (vor Slider-Erstellung)
         self._initial_brightness = 80
@@ -491,32 +488,6 @@ class ArgonControlWindow(Gtk.Window):
         self.notif_status.set_halign(Gtk.Align.START)
         notif_box.pack_start(self.notif_status, False, False, 0)
 
-        # ── Tastaturbeleuchtung ──────────────────────────────
-        kbd_frame = Gtk.Frame()
-        kbd_frame.set_label_widget(self._section("input-keyboard-symbolic", "Tastaturbeleuchtung"))
-        kbd_frame.set_margin_top(6)
-        right_col.pack_start(kbd_frame, False, False, 0)
-
-        kbd_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=12)
-        kbd_box.set_margin_top(10)
-        kbd_box.set_margin_bottom(10)
-        kbd_box.set_margin_start(12)
-        kbd_box.set_margin_end(12)
-        kbd_frame.add(kbd_box)
-
-        kbd_lbl = Gtk.Label(label="Beleuchtung:")
-        kbd_box.pack_start(kbd_lbl, False, False, 0)
-
-        self.kbd_switch = Gtk.Switch()
-        self.kbd_switch.set_active(self.kbd_backlight)
-        self.kbd_switch.connect("notify::active", self.on_kbd_toggled)
-        kbd_box.pack_start(self.kbd_switch, False, False, 0)
-
-        self.kbd_status = Gtk.Label()
-        self.kbd_status.set_halign(Gtk.Align.START)
-        kbd_box.pack_start(self.kbd_status, False, False, 0)
-        self._update_kbd_label()
-
         # ── Deckel-Aktion ────────────────────────────────────
         lid_frame = Gtk.Frame()
         lid_frame.set_label_widget(self._section("system-suspend-symbolic", "Deckel zuklappen"))
@@ -594,7 +565,6 @@ class ArgonControlWindow(Gtk.Window):
                     data = json.load(f)
                 self.fan_mode = data.get("fan_mode", "auto")
                 self.fan_speed = data.get("fan_speed", 0)
-                self.kbd_backlight = data.get("kbd_backlight", False)
         except Exception:
             pass
 
@@ -619,15 +589,6 @@ class ArgonControlWindow(Gtk.Window):
             parts.append(f"{p['temp']}°C={p['speed']}%")
         info_text = " | ".join(parts)
         self.auto_info.set_markup(f"<small><i>Auto: {info_text}</i></small>")
-
-    def _update_kbd_label(self):
-        """Aktualisiert Tastaturbeleuchtungs-Label (falls Widget vorhanden)."""
-        if not hasattr(self, "kbd_switch") or not hasattr(self, "kbd_status"):
-            return
-        if self.kbd_switch.get_active():
-            self.kbd_status.set_markup("<span foreground='#44CC44'><b>Ein</b></span>")
-        else:
-            self.kbd_status.set_markup("<span foreground='#888888'>Aus</span>")
 
     def on_fan_mode_changed(self, widget):
         """Handler fuer Lueftermodus-Aenderung."""
@@ -657,14 +618,6 @@ class ArgonControlWindow(Gtk.Window):
         if self._updating:
             return
         self.fan_speed = val
-        self._write_control()
-
-    def on_kbd_toggled(self, widget, gparam):
-        """Handler fuer Tastaturbeleuchtungs-Toggle."""
-        if self._updating:
-            return
-        self._kbd_changed_at = time.time()
-        self._update_kbd_label()
         self._write_control()
 
     def on_save_curve(self, widget):
@@ -921,7 +874,6 @@ class ArgonControlWindow(Gtk.Window):
         data = {
             "fan_mode": self.fan_mode,
             "fan_speed": self.fan_speed,
-            "kbd_backlight": self.kbd_switch.get_active(),
             "brightness": int(self.bright_adjustment.get_value())
         }
         try:
@@ -1020,13 +972,6 @@ class ArgonControlWindow(Gtk.Window):
             # Im Auto-Modus: Slider-Wert aus Status aktualisieren
             if fan_mode == "auto":
                 self.fan_adjustment.set_value(fan_speed)
-
-            # Tastaturbeleuchtung synchronisieren (nur wenn Nutzer nicht gerade geaendert hat)
-            kbd = data.get("kbd_backlight", False)
-            kbd_changed_recently = (time.time() - self._kbd_changed_at) < 3.0
-            if not kbd_changed_recently and hasattr(self, "kbd_switch") and kbd != self.kbd_switch.get_active():
-                self.kbd_switch.set_active(kbd)
-                self._update_kbd_label()
 
             # Helligkeit synchronisieren (nur wenn Nutzer nicht gerade geaendert hat)
             brightness = data.get("brightness")

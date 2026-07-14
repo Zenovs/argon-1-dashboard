@@ -35,7 +35,6 @@ A lightweight XFCE panel applet + GTK3 control panel that monitors and controls 
 | 🌡 CPU Temperature | Live reading with color-coded warnings |
 | 🌀 Fan | RPM display, auto/manual mode, configurable temperature curve |
 | ☀️ Screen Brightness | Slider + **Fn+F2/F3** hotkeys (via DDC/CI on I2C bus 14) |
-| 💡 Keyboard Backlight | On/Off toggle |
 | 🔔 Battery Warning | Desktop notification when battery drops below a configurable threshold |
 | 🖥 Panel Applet | XFCE Genmon plugin showing all values in the taskbar |
 
@@ -52,7 +51,6 @@ A lightweight XFCE panel applet + GTK3 control panel that monitors and controls 
 - Status overview (battery, temperature, fan, charge state, remaining time)
 - Brightness slider (10–100%, synced with Fn keys)
 - Fan control (Auto / Manual + configurable curve)
-- Keyboard backlight toggle
 - Battery warning notification (enable/disable, threshold 5–50%)
 - Lid action selector (suspend / hibernate / ignore)
 - Screen lock on resume toggle
@@ -154,9 +152,8 @@ argon_daemon.py  (systemd root service)
     ├── I2C bus 14, address 0x37  →  DDC/CI display brightness (VCP 0x10)
     │
     ├── /sys/class/thermal/thermal_zone0/temp  →  CPU temperature
-    ├── /sys/class/hwmon/hwmon3/fan1_input     →  fan RPM
-    ├── /sys/class/hwmon/hwmon3/pwm1           →  fan PWM control
-    ├── /sys/class/leds/default-on/brightness  →  keyboard backlight
+    ├── /sys/class/hwmon/hwmonX/fan1_input      →  fan RPM (hwmon path auto-detected)
+    ├── /sys/class/hwmon/hwmonX/pwm1            →  fan PWM control
     │
     ├── writes  →  /tmp/argon_dashboard_status   (JSON, every 2s)
     └── reads   ←  /tmp/argon_dashboard_control  (JSON, commands from UI)
@@ -182,7 +179,6 @@ argon_hotkeys.py    (systemd user service, evdev)
     "fan_rpm": 1200,
     "fan_speed": 30,
     "fan_mode": "auto",
-    "kbd_backlight": true,
     "brightness": 80,
     "timestamp": 1711929600.0
 }
@@ -193,7 +189,6 @@ argon_hotkeys.py    (systemd user service, evdev)
 {
     "fan_mode": "auto",
     "fan_speed": 50,
-    "kbd_backlight": true,
     "brightness": 80
 }
 ```
