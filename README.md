@@ -36,6 +36,7 @@ A lightweight XFCE panel applet + GTK3 control panel that monitors and controls 
 | 🌀 Fan | RPM display, auto/manual mode, configurable temperature curve |
 | ☀️ Screen Brightness | Slider + **Fn+F2/F3** hotkeys (via DDC/CI on I2C bus 14) |
 | 💡 Keyboard Backlight | On/Off toggle |
+| 🔔 Battery Warning | Desktop notification when battery drops below a configurable threshold |
 | 🖥 Panel Applet | XFCE Genmon plugin showing all values in the taskbar |
 
 ---
@@ -52,6 +53,7 @@ A lightweight XFCE panel applet + GTK3 control panel that monitors and controls 
 - Brightness slider (10–100%, synced with Fn keys)
 - Fan control (Auto / Manual + configurable curve)
 - Keyboard backlight toggle
+- Battery warning notification (enable/disable, threshold 5–50%)
 - Lid action selector (suspend / hibernate / ignore)
 - Screen lock on resume toggle
 - One-click update button
@@ -69,6 +71,7 @@ A lightweight XFCE panel applet + GTK3 control panel that monitors and controls 
   - `python3-gi` (GTK3 bindings)
   - `evdev` (hotkey daemon)
   - `i2c-tools`
+  - `libnotify-bin` (battery warning notifications)
 
 ---
 
@@ -120,6 +123,21 @@ Edit `/etc/argon/fan_config.json` or use the control panel UI:
 ```
 
 The daemon reloads this file automatically — no restart needed.
+
+---
+
+## Battery warning notifications
+
+Enable in the control panel ("Benachrichtigungen" section) or edit `~/.config/argon/notifications.json` directly:
+
+```json
+{
+    "battery_warning": true,
+    "battery_threshold": 10
+}
+```
+
+When the battery drops to or below `battery_threshold` percent while not charging, the panel applet sends a desktop notification via `notify-send`. The alert fires once per discharge cycle — it resets automatically once the battery recovers above `threshold + 5`%.
 
 ---
 

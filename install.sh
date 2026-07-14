@@ -92,6 +92,14 @@ else
     echo "  → xfconf bereits installiert ✓"
 fi
 
+# libnotify-bin pruefen und installieren (fuer Akku-Warnbenachrichtigungen)
+if ! command -v notify-send &>/dev/null; then
+    echo "  → Installiere libnotify-bin..."
+    apt-get install -y libnotify-bin
+else
+    echo "  → libnotify-bin bereits installiert ✓"
+fi
+
 # Sicherstellen dass User in i2c-Gruppe ist
 if ! groups "$USER_NAME" | grep -q "\bi2c\b"; then
     echo "  → Fuege $USER_NAME zur i2c-Gruppe hinzu..."
