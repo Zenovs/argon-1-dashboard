@@ -3,6 +3,7 @@
 # Argon ONE UP CM5 - XFCE Genmon Panel-Applet
 
 STATUS_FILE="/tmp/argon_dashboard_status"
+NOTIF_FILE="${HOME}/.config/argon/notifications.json"
 WHITE="#ffffff"
 DIM="#aaaaaa"
 SEP="  <span foreground='#555555'>|</span>  "
@@ -22,54 +23,50 @@ if [ "$FILE_AGE" -gt 10 ]; then
     exit 0
 fi
 
-# JSON lesen
-eval "$(python3 << 'PYEOF'
-import json, os, sys
-try:
-    with open('/tmp/argon_dashboard_status') as f:
-        d = json.load(f)
-    print(f'BATTERY={int(d.get("battery_percent", -1))}')
-    v = d.get('is_charging')
-    if v is True:
-        print('CHARGING=true')
-    elif v is False:
-        print('CHARGING=false')
-    else:
-        print('CHARGING=unknown')
-    print(f'TEMP={d.get("cpu_temp", -1)}')
-    print(f'FAN_RPM={d.get("fan_rpm", -1)}')
-    print(f'FAN_SPEED={d.get("fan_speed", 0)}')
-    tr = d.get('time_remaining')
-    if tr is not None:
-        h = int(tr // 60)
-        m = int(tr % 60)
-        print(f'TIME_H={h}')
-        print(f'TIME_M={m}')
-    else:
-        print('TIME_H=')
-        print('TIME_M=')
-except Exception:
-    print('BATTERY=-1')
-    print('CHARGING=unknown')
-    print('TEMP=-1')
-    print('FAN_RPM=-1')
-    print('FAN_SPEED=0')
-    print('TIME_H=')
-    print('TIME_M=')
+# JSON-Werte per grep auslesen (kein Python-Subprozess mehr noetig,
+# spart einen Interpreter-Start alle 2 Sekunden im Dauerbetrieb)
+json_get() {
+    grep -oP "\"$2\":\s*\K[^,}]*" "$1" 2>/dev/null | head -1 | tr -d '"'
+}
 
-# Benachrichtigungs-Konfiguration lesen
-try:
-    notif_file = os.path.expanduser('~/.config/argon/notifications.json')
-    nd = json.load(open(notif_file))
-    bw = nd.get('battery_warning', False)
-    bt = int(nd.get('battery_threshold', 10))
-    print('BATT_WARN=' + ('true' if bw else 'false'))
-    print(f'BATT_THRESH={bt}')
-except Exception:
-    print('BATT_WARN=false')
-    print('BATT_THRESH=10')
-PYEOF
-)"
+BATTERY=$(json_get "$STATUS_FILE" battery_percent)
+BATTERY=${BATTERY%%.*}
+[ -z "$BATTERY" ] && BATTERY=-1
+
+case "$(json_get "$STATUS_FILE" is_charging)" in
+    true)  CHARGING="true" ;;
+    false) CHARGING="false" ;;
+    *)     CHARGING="unknown" ;;
+esac
+
+TEMP=$(json_get "$STATUS_FILE" cpu_temp)
+[ -z "$TEMP" ] && TEMP=-1
+
+FAN_RPM=$(json_get "$STATUS_FILE" fan_rpm)
+FAN_RPM=${FAN_RPM%%.*}
+[ -z "$FAN_RPM" ] && FAN_RPM=-1
+
+FAN_SPEED=$(json_get "$STATUS_FILE" fan_speed)
+FAN_SPEED=${FAN_SPEED%%.*}
+[ -z "$FAN_SPEED" ] && FAN_SPEED=0
+
+TR_RAW=$(json_get "$STATUS_FILE" time_remaining)
+if [ -n "$TR_RAW" ] && [ "$TR_RAW" != "null" ]; then
+    TR_INT=${TR_RAW%%.*}
+    TIME_H=$(( TR_INT / 60 ))
+    TIME_M=$(( TR_INT % 60 ))
+else
+    TIME_H=""
+    TIME_M=""
+fi
+
+BATT_WARN="false"
+BATT_THRESH=10
+if [ -f "$NOTIF_FILE" ]; then
+    [ "$(json_get "$NOTIF_FILE" battery_warning)" = "true" ] && BATT_WARN="true"
+    bt=$(json_get "$NOTIF_FILE" battery_threshold)
+    [ -n "$bt" ] && BATT_THRESH=${bt%%.*}
+fi
 
 # Ladeindikator
 if [ "$CHARGING" = "true" ]; then
