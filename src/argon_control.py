@@ -212,6 +212,7 @@ class ArgonControlWindow(Gtk.Window):
         self.kbd_backlight = False
         self._updating = False
         self._bright_changed_at = 0  # Zeitstempel der letzten Nutzer-Aenderung
+        self._kbd_changed_at = 0  # Zeitstempel der letzten Nutzer-Aenderung
 
         # Aktuelle Helligkeit aus Status-Datei lesen (vor Slider-Erstellung)
         self._initial_brightness = 80
@@ -662,7 +663,7 @@ class ArgonControlWindow(Gtk.Window):
         """Handler fuer Tastaturbeleuchtungs-Toggle."""
         if self._updating:
             return
-        self.kbd_backlight = widget.get_active()
+        self._kbd_changed_at = time.time()
         self._update_kbd_label()
         self._write_control()
 
@@ -920,7 +921,7 @@ class ArgonControlWindow(Gtk.Window):
         data = {
             "fan_mode": self.fan_mode,
             "fan_speed": self.fan_speed,
-            "kbd_backlight": self.kbd_backlight,
+            "kbd_backlight": self.kbd_switch.get_active(),
             "brightness": int(self.bright_adjustment.get_value())
         }
         try:
@@ -1020,9 +1021,10 @@ class ArgonControlWindow(Gtk.Window):
             if fan_mode == "auto":
                 self.fan_adjustment.set_value(fan_speed)
 
-            # Tastaturbeleuchtung synchronisieren
+            # Tastaturbeleuchtung synchronisieren (nur wenn Nutzer nicht gerade geaendert hat)
             kbd = data.get("kbd_backlight", False)
-            if hasattr(self, "kbd_switch") and kbd != self.kbd_switch.get_active():
+            kbd_changed_recently = (time.time() - self._kbd_changed_at) < 3.0
+            if not kbd_changed_recently and hasattr(self, "kbd_switch") and kbd != self.kbd_switch.get_active():
                 self.kbd_switch.set_active(kbd)
                 self._update_kbd_label()
 
